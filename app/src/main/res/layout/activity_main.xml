@@ -15,7 +15,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="24dp"
         android:background="#FFFFFF" />
 
     <TextView
@@ -24,8 +24,10 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/resolutionSpinner"
         android:layout_centerHorizontal="true"
-        android:padding="10dp"
-        android:textColor="#FFFFFF" />
+        android:padding="12dp"
+        android:text="Ready"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp" />
 
     <Button
         android:id="@+id/recordButton"
@@ -33,6 +35,6 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginBottom="30dp"
+        android:layout_marginBottom="40dp"
         android:text="Start Recording" />
 </RelativeLayout>
