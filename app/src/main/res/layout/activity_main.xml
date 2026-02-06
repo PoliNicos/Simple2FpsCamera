@@ -1,30 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#000000">
 
     <TextureView
         android:id="@+id/textureView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <Spinner
+        android:id="@+id/resolutionSpinner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp"
+        android:background="#FFFFFF" />
+
     <TextView
         android:id="@+id/statusText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Ready"
-        android:layout_alignParentTop="true"
+        android:layout_below="@id/resolutionSpinner"
         android:layout_centerHorizontal="true"
-        android:padding="16dp"
-        android:textColor="#FFFFFF"
-        android:background="#80000000" />
+        android:padding="10dp"
+        android:textColor="#FFFFFF" />
 
     <Button
-        android:id="@+id/btnRecord"
+        android:id="@+id/recordButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Start"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginBottom="50dp" />
+        android:layout_marginBottom="30dp"
+        android:text="Start Recording" />
 </RelativeLayout>
