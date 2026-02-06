@@ -1,7 +1,18 @@
+// Root build.gradle
 buildscript {
-    repositories { google(); mavenCentral() }
-    dependencies { classpath 'com.android.tools.build:gradle:8.0.2' }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // This is the Android Gradle Plugin version
+        classpath 'com.android.tools.build:gradle:8.0.2'
+    }
 }
-allprojects {
-    repositories { google(); mavenCentral() }
+// Top-level build file
+plugins {
+    id 'com.android.application' version '8.2.0' apply false
+    id 'com.android.library' version '8.2.0' apply false
 }
+// We removed the "allprojects" block from here 
+// because it is now handled by settings.gradle
