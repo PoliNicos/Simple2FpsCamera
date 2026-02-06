@@ -2,6 +2,7 @@ package com.simple2fps.camera;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.SurfaceTexture; // Added missing import
 import android.hardware.camera2.*;
 import android.media.MediaRecorder;
 import android.os.Environment;
@@ -39,7 +40,6 @@ public class Camera2VideoRecorder {
         startBackgroundThread();
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
-            // Find a back-facing camera
             for (String id : manager.getCameraIdList()) {
                 CameraCharacteristics chars = manager.getCameraCharacteristics(id);
                 if (chars.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK) {
@@ -47,11 +47,14 @@ public class Camera2VideoRecorder {
                     break;
                 }
             }
-            if (cameraId == null) cameraId = manager.getCameraIdList()[0]; // Fallback
+            if (cameraId == null && manager.getCameraIdList().length > 0) {
+                cameraId = manager.getCameraIdList()[0];
+            }
             
-            // Open it (Permissions already checked in MainActivity)
             try {
-                manager.openCamera(cameraId, stateCallback, backgroundHandler);
+                if (cameraId != null) {
+                    manager.openCamera(cameraId, stateCallback, backgroundHandler);
+                }
             } catch (SecurityException e) { e.printStackTrace(); }
             
         } catch (CameraAccessException e) { e.printStackTrace(); }
@@ -61,7 +64,7 @@ public class Camera2VideoRecorder {
         @Override
         public void onOpened(CameraDevice camera) {
             cameraDevice = camera;
-            startPreview(); // Start showing the video feed immediately
+            startPreview();
         }
         @Override
         public void onDisconnected(CameraDevice camera) { camera.close(); cameraDevice = null; }
@@ -73,15 +76,14 @@ public class Camera2VideoRecorder {
         if (cameraDevice == null || !textureView.isAvailable()) return;
         try {
             SurfaceTexture texture = textureView.getSurfaceTexture();
-            texture.setDefaultBufferSize(640, 480); // Low res for vintage feel
+            texture.setDefaultBufferSize(640, 480);
             Surface surface = new Surface(texture);
 
             previewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             previewRequestBuilder.addTarget(surface);
 
-            // FORCE FPS RANGE (This is the magic part for 2 FPS)
-            // We ask the camera for available ranges and pick the lowest
-            previewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(selectedFps, 30));
+            // FORCE FPS RANGE [2, 30] for preview so it doesn't crash
+            previewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(2, 30));
 
             cameraDevice.createCaptureSession(Collections.singletonList(surface), new CameraCaptureSession.StateCallback() {
                 @Override
@@ -98,7 +100,7 @@ public class Camera2VideoRecorder {
 
     public void startRecording(int fps) {
         this.selectedFps = fps;
-        closePreviewSession(); // Stop preview to switch to record mode
+        closePreviewSession();
         
         try {
             File file = new File(activity.getExternalFilesDir(Environment.DIRECTORY_MOVIES), "REC_" + System.currentTimeMillis() + ".mp4");
@@ -108,8 +110,8 @@ public class Camera2VideoRecorder {
             mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             mediaRecorder.setOutputFile(file.getAbsolutePath());
-            mediaRecorder.setVideoEncodingBitRate(1000000); // 1Mbps (Low quality)
-            mediaRecorder.setVideoFrameRate(fps); // SET THE VIDEO FILE FPS
+            mediaRecorder.setVideoEncodingBitRate(1000000); 
+            mediaRecorder.setVideoFrameRate(fps); 
             mediaRecorder.setVideoSize(640, 480);
             mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
@@ -124,8 +126,8 @@ public class Camera2VideoRecorder {
             previewRequestBuilder.addTarget(previewSurface);
             previewRequestBuilder.addTarget(recordSurface);
             
-            // FORCE FPS ON SENSOR AGAIN
-            previewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(fps, fps));
+            // ATTEMPT TO FORCE FPS
+            previewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(fps, 30));
 
             cameraDevice.createCaptureSession(Arrays.asList(previewSurface, recordSurface), new CameraCaptureSession.StateCallback() {
                 @Override
@@ -153,8 +155,11 @@ public class Camera2VideoRecorder {
 
     public void stopRecording() {
         try {
-            captureSession.stop();
-            captureSession.abortCaptures();
+            // FIXED: stop() does not exist, use stopRepeating()
+            if (captureSession != null) {
+                captureSession.stopRepeating();
+                captureSession.abortCaptures();
+            }
         } catch (Exception e) {}
         
         try {
@@ -163,7 +168,7 @@ public class Camera2VideoRecorder {
         } catch (Exception e) {}
         
         activity.runOnUiThread(() -> statusView.setText("Saved"));
-        startPreview(); // Restart preview
+        startPreview(); 
     }
     
     public void closeCamera() {
