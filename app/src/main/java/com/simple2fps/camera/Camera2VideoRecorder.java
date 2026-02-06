@@ -103,7 +103,7 @@ public class Camera2VideoRecorder {
         closePreviewSession();
         
         try {
-            File file = new File(activity.getExternalFilesDir(Environment.DIRECTORY_MOVIES), "REC_" + System.currentTimeMillis() + ".mp4");
+            File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "REC_" + System.currentTimeMillis() + ".mp4");
             
             mediaRecorder = new MediaRecorder();
             mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
