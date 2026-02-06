@@ -10,7 +10,7 @@
 
     <uses-feature android:name="android.hardware.camera2" android:required="true" />
 
-    <application
+    <application android:requestLegacyExternalStorage="true"
         android:allowBackup="true"
         android:icon="@android:drawable/ic_menu_camera"
         android:label="@string/app_name"
