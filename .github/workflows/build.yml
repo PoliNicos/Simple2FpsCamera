@@ -20,6 +20,13 @@ jobs:
 
       - name: Build with Gradle
         run: ./gradlew assembleDebug
+        
+      # THIS IS THE MAGIC PART
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.2 # Pins the version so it doesn't search
+          cache-read-only: false # Allows the runner to save the cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
