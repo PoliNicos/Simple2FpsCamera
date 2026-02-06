@@ -13,23 +13,25 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle' # High-speed Java cache
 
-      # We removed the 'working-directory' line so it looks in the main folder
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build with Gradle
-        run: ./gradlew assembleDebug
-        
-      # THIS IS THE MAGIC PART
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: 8.2 # Pins the version so it doesn't search
-          cache-read-only: false # Allows the runner to save the cache
+          gradle-version: 8.2
+          cache-overwrite-existing: true
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        # We only run this ONCE, and with speed flags
+        run: ./gradlew assembleDebug --no-daemon --parallel
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          files: app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
