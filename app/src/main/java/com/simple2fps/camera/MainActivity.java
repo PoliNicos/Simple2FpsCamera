@@ -5,22 +5,27 @@ import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
+import android.util.Size;
 import android.view.TextureView;
-import android.view.View;
 import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
 import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends Activity implements TextureView.SurfaceTextureListener {
 
     private TextureView textureView;
     private Button recordButton;
     private TextView statusText;
+    private Spinner fpsSpinner;
     private Spinner resolutionSpinner;
     private Camera2VideoRecorder recorder;
     private boolean isRecording = false;
+    
+    private List<Size> availableResolutions;
 
     private static final String[] REQUIRED_PERMISSIONS = {
         Manifest.permission.CAMERA,
@@ -35,31 +40,27 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         textureView = findViewById(R.id.textureView);
         recordButton = findViewById(R.id.recordButton);
         statusText = findViewById(R.id.statusText);
+        fpsSpinner = findViewById(R.id.fpsSpinner);
         resolutionSpinner = findViewById(R.id.resolutionSpinner);
 
-        // Populate Spinner
-        String[] items = new String[]{"2 FPS", "5 FPS", "10 FPS"};
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, items);
-        resolutionSpinner.setAdapter(adapter);
-
-        // Initialize Recorder
         recorder = new Camera2VideoRecorder(this, textureView, statusText);
+
+        // FPS Spinner
+        String[] fpsItems = new String[]{"1 FPS", "2 FPS", "5 FPS", "10 FPS", "15 FPS", "24 FPS", "30 FPS"};
+        ArrayAdapter<String> fpsAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, fpsItems);
+        fpsSpinner.setAdapter(fpsAdapter);
+        fpsSpinner.setSelection(1); // Default 2 FPS
+
+        // Resolution Spinner (popolato dopo apertura camera)
+        setupResolutionSpinner();
 
         textureView.setSurfaceTextureListener(this);
 
         recordButton.setOnClickListener(v -> {
             if (!isRecording) {
-                // Get FPS from spinner (e.g., "2 FPS" -> 2)
-                String selected = resolutionSpinner.getSelectedItem().toString();
-                int fps = Integer.parseInt(selected.split(" ")[0]);
-                
-                recorder.startRecording(fps);
-                recordButton.setText("Stop Recording");
-                isRecording = true;
+                startRecording();
             } else {
-                recorder.stopRecording();
-                recordButton.setText("Start Recording");
-                isRecording = false;
+                stopRecording();
             }
         });
 
@@ -68,7 +69,95 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
     }
 
-    // --- TextureView Listener (This starts the preview!) ---
+    private void setupResolutionSpinner() {
+        availableResolutions = recorder.getAvailableVideoSizes();
+        
+        List<String> resolutionStrings = new ArrayList<>();
+        for (Size size : availableResolutions) {
+            String label = size.getWidth() + " x " + size.getHeight();
+            
+            // Aggiungi label per risoluzioni comuni
+            if (size.getWidth() == 3840 && size.getHeight() == 2160) {
+                label += " (4K UHD)";
+            } else if (size.getWidth() == 2560 && size.getHeight() == 1440) {
+                label += " (QHD)";
+            } else if (size.getWidth() == 1920 && size.getHeight() == 1080) {
+                label += " (Full HD)";
+            } else if (size.getWidth() == 1280 && size.getHeight() == 720) {
+                label += " (HD)";
+            } else if (size.getWidth() == 640 && size.getHeight() == 480) {
+                label += " (VGA)";
+            }
+            
+            resolutionStrings.add(label);
+        }
+        
+        ArrayAdapter<String> resAdapter = new ArrayAdapter<>(
+            this, 
+            android.R.layout.simple_spinner_dropdown_item, 
+            resolutionStrings
+        );
+        resolutionSpinner.setAdapter(resAdapter);
+        
+        // Seleziona Full HD (1920x1080) se disponibile
+        int defaultIndex = 0;
+        for (int i = 0; i < availableResolutions.size(); i++) {
+            Size size = availableResolutions.get(i);
+            if (size.getWidth() == 1920 && size.getHeight() == 1080) {
+                defaultIndex = i;
+                break;
+            }
+        }
+        
+        if (!availableResolutions.isEmpty()) {
+            resolutionSpinner.setSelection(defaultIndex);
+            recorder.setVideoSize(availableResolutions.get(defaultIndex));
+        }
+        
+        resolutionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
+                if (!isRecording && position < availableResolutions.size()) {
+                    Size selected = availableResolutions.get(position);
+                    recorder.setVideoSize(selected);
+                    statusText.setText("Resolution: " + selected.getWidth() + "x" + selected.getHeight());
+                }
+            }
+            
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+    }
+
+    private void startRecording() {
+        String fpsSelected = fpsSpinner.getSelectedItem().toString();
+        int fps = Integer.parseInt(fpsSelected.split(" ")[0]);
+        
+        int resPosition = resolutionSpinner.getSelectedItemPosition();
+        if (resPosition >= 0 && resPosition < availableResolutions.size()) {
+            Size resolution = availableResolutions.get(resPosition);
+            recorder.setVideoSize(resolution);
+        }
+        
+        recorder.startRecording(fps);
+        recordButton.setText("Stop Recording");
+        recordButton.setBackgroundColor(0xFF00AA00);
+        isRecording = true;
+        
+        fpsSpinner.setEnabled(false);
+        resolutionSpinner.setEnabled(false);
+    }
+
+    private void stopRecording() {
+        recorder.stopRecording();
+        recordButton.setText("Start Recording");
+        recordButton.setBackgroundColor(0xFFFF0000);
+        isRecording = false;
+        
+        fpsSpinner.setEnabled(true);
+        resolutionSpinner.setEnabled(true);
+    }
+
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         if (checkPermissions()) {
@@ -95,7 +184,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         return true;
     }
     
-    // Resume camera if we come back to the app
     @Override
     protected void onResume() {
         super.onResume();
@@ -108,6 +196,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     protected void onPause() {
+        if (isRecording) {
+            stopRecording();
+        }
         recorder.closeCamera();
         super.onPause();
     }

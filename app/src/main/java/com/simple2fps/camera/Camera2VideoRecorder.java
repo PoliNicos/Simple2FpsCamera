@@ -4,19 +4,24 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.*;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.MediaRecorder;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Range;
+import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 public class Camera2VideoRecorder {
     private static final String TAG = "Camera2VideoRecorder";
@@ -32,11 +37,68 @@ public class Camera2VideoRecorder {
     private Handler backgroundHandler;
     private String cameraId;
     private int selectedFps = 2;
+    private Size selectedVideoSize = null;
 
     public Camera2VideoRecorder(Activity activity, TextureView textureView, TextView statusView) {
         this.activity = activity;
         this.textureView = textureView;
         this.statusView = statusView;
+    }
+
+    public List<Size> getAvailableVideoSizes() {
+        List<Size> sizes = new ArrayList<>();
+        
+        try {
+            CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
+            
+            String targetCameraId = cameraId;
+            if (targetCameraId == null) {
+                for (String id : manager.getCameraIdList()) {
+                    CameraCharacteristics chars = manager.getCameraCharacteristics(id);
+                    if (chars.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK) {
+                        targetCameraId = id;
+                        break;
+                    }
+                }
+                if (targetCameraId == null && manager.getCameraIdList().length > 0) {
+                    targetCameraId = manager.getCameraIdList()[0];
+                }
+            }
+            
+            if (targetCameraId != null) {
+                CameraCharacteristics characteristics = manager.getCameraCharacteristics(targetCameraId);
+                StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                
+                if (map != null) {
+                    Size[] supportedSizes = map.getOutputSizes(MediaRecorder.class);
+                    if (supportedSizes != null) {
+                        sizes.addAll(Arrays.asList(supportedSizes));
+                        Collections.sort(sizes, new Comparator<Size>() {
+                            @Override
+                            public int compare(Size s1, Size s2) {
+                                return Integer.compare(s2.getWidth() * s2.getHeight(), s1.getWidth() * s1.getHeight());
+                            }
+                        });
+                        Log.d(TAG, "Found " + sizes.size() + " video resolutions");
+                    }
+                }
+            }
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Error getting video sizes", e);
+        }
+        
+        if (sizes.isEmpty()) {
+            sizes.add(new Size(1920, 1080));
+            sizes.add(new Size(1280, 720));
+            sizes.add(new Size(640, 480));
+        }
+        
+        return sizes;
+    }
+    
+    public void setVideoSize(Size size) {
+        this.selectedVideoSize = size;
+        Log.d(TAG, "Video size set to: " + size.getWidth() + "x" + size.getHeight());
     }
 
     public void openCamera(int width, int height) {
@@ -58,13 +120,9 @@ public class Camera2VideoRecorder {
                 if (cameraId != null) {
                     manager.openCamera(cameraId, stateCallback, backgroundHandler);
                 }
-            } catch (SecurityException e) { 
-                e.printStackTrace(); 
-            }
+            } catch (SecurityException e) { e.printStackTrace(); }
             
-        } catch (CameraAccessException e) { 
-            e.printStackTrace(); 
-        }
+        } catch (CameraAccessException e) { e.printStackTrace(); }
     }
 
     private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
@@ -74,28 +132,24 @@ public class Camera2VideoRecorder {
             startPreview();
         }
         @Override
-        public void onDisconnected(CameraDevice camera) { 
-            camera.close(); 
-            cameraDevice = null; 
-        }
+        public void onDisconnected(CameraDevice camera) { camera.close(); cameraDevice = null; }
         @Override
-        public void onError(CameraDevice camera, int error) { 
-            camera.close(); 
-            cameraDevice = null; 
-        }
+        public void onError(CameraDevice camera, int error) { camera.close(); cameraDevice = null; }
     };
 
     private void startPreview() {
         if (cameraDevice == null || !textureView.isAvailable()) return;
         try {
             SurfaceTexture texture = textureView.getSurfaceTexture();
-            texture.setDefaultBufferSize(640, 480);
+            
+            int previewWidth = selectedVideoSize != null ? selectedVideoSize.getWidth() : 1920;
+            int previewHeight = selectedVideoSize != null ? selectedVideoSize.getHeight() : 1080;
+            
+            texture.setDefaultBufferSize(previewWidth, previewHeight);
             Surface surface = new Surface(texture);
 
             previewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             previewRequestBuilder.addTarget(surface);
-
-            // For preview, use a wider range so it's smooth
             previewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(15, 30));
 
             cameraDevice.createCaptureSession(Collections.singletonList(surface), 
@@ -105,42 +159,40 @@ public class Camera2VideoRecorder {
                     captureSession = session;
                     try {
                         session.setRepeatingRequest(previewRequestBuilder.build(), null, backgroundHandler);
-                    } catch (CameraAccessException e) { 
-                        e.printStackTrace(); 
-                    }
+                    } catch (CameraAccessException e) { e.printStackTrace(); }
                 }
-                @Override 
-                public void onConfigureFailed(CameraCaptureSession session) {
-                    Log.e(TAG, "Preview session configuration failed");
-                }
+                @Override public void onConfigureFailed(CameraCaptureSession session) {}
             }, backgroundHandler);
-        } catch (CameraAccessException e) { 
-            e.printStackTrace(); 
-        }
+        } catch (CameraAccessException e) { e.printStackTrace(); }
     }
 
     public void startRecording(int fps) {
         this.selectedFps = fps;
         closePreviewSession();
         
+        int videoWidth = selectedVideoSize != null ? selectedVideoSize.getWidth() : 1920;
+        int videoHeight = selectedVideoSize != null ? selectedVideoSize.getHeight() : 1080;
+        
         try {
-            File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), 
-                "REC_" + fps + "fps_" + System.currentTimeMillis() + ".mp4");
+            File file = new File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), 
+                "REC_" + fps + "fps_" + videoWidth + "x" + videoHeight + "_" + System.currentTimeMillis() + ".mp4"
+            );
             
             mediaRecorder = new MediaRecorder();
             mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             mediaRecorder.setOutputFile(file.getAbsolutePath());
-            mediaRecorder.setVideoEncodingBitRate(1000000); 
-            mediaRecorder.setVideoFrameRate(fps); // This sets playback FPS
-            mediaRecorder.setVideoSize(640, 480);
+            mediaRecorder.setVideoEncodingBitRate(calculateBitrate(videoWidth, videoHeight, fps));
+            mediaRecorder.setVideoFrameRate(fps);
+            mediaRecorder.setVideoSize(videoWidth, videoHeight);
             mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
             mediaRecorder.prepare();
 
             SurfaceTexture texture = textureView.getSurfaceTexture();
-            texture.setDefaultBufferSize(640, 480);
+            texture.setDefaultBufferSize(videoWidth, videoHeight);
             Surface previewSurface = new Surface(texture);
             Surface recordSurface = mediaRecorder.getSurface();
 
@@ -148,13 +200,8 @@ public class Camera2VideoRecorder {
             previewRequestBuilder.addTarget(previewSurface);
             previewRequestBuilder.addTarget(recordSurface);
             
-            // ⭐ THE FIX: Set BOTH min and max to the SAME value!
-            // This forces the camera to capture at exactly this FPS
-            // From: https://stackoverflow.com/questions/53957348/how-to-modify-frame-rate-using-camera2
-            Range<Integer> fpsRange = new Range<>(fps, fps); // BOTH values same!
+            Range<Integer> fpsRange = new Range<>(fps, fps);
             previewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
-            
-            Log.d(TAG, "Setting FPS range to: " + fpsRange + " (forces exactly " + fps + " FPS)");
 
             cameraDevice.createCaptureSession(Arrays.asList(previewSurface, recordSurface), 
                 new CameraCaptureSession.StateCallback() {
@@ -166,29 +213,26 @@ public class Camera2VideoRecorder {
                         mediaRecorder.start();
                         
                         activity.runOnUiThread(() -> {
-                            statusView.setText("REC: " + fps + " FPS");
-                            Toast.makeText(activity, "Recording at " + fps + " FPS", Toast.LENGTH_SHORT).show();
+                            statusView.setText("REC: " + fps + " FPS @ " + videoWidth + "x" + videoHeight);
+                            Toast.makeText(activity, "Recording " + fps + " FPS @ " + videoWidth + "x" + videoHeight, Toast.LENGTH_SHORT).show();
                         });
                         
-                    } catch (Exception e) { 
-                        e.printStackTrace(); 
-                        activity.runOnUiThread(() -> 
-                            Toast.makeText(activity, "Recording failed: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                    }
+                    } catch (Exception e) { e.printStackTrace(); }
                 }
-                @Override 
-                public void onConfigureFailed(CameraCaptureSession session) {
-                    Log.e(TAG, "Recording session configuration failed");
-                    activity.runOnUiThread(() -> 
-                        Toast.makeText(activity, "Failed to configure camera for recording", Toast.LENGTH_LONG).show());
-                }
+                @Override public void onConfigureFailed(CameraCaptureSession session) {}
             }, backgroundHandler);
 
         } catch (Exception e) { 
             e.printStackTrace(); 
-            activity.runOnUiThread(() -> 
-                Toast.makeText(activity, "Error starting recording: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            activity.runOnUiThread(() -> Toast.makeText(activity, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show());
         }
+    }
+    
+    private int calculateBitrate(int width, int height, int fps) {
+        int pixels = width * height;
+        double bitsPerPixel = fps <= 5 ? 0.25 : 0.15;
+        int bitrate = (int) (pixels * fps * bitsPerPixel);
+        return Math.max(500000, Math.min(bitrate, 20000000));
     }
 
     public void stopRecording() {
@@ -197,47 +241,26 @@ public class Camera2VideoRecorder {
                 captureSession.stopRepeating();
                 captureSession.abortCaptures();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) {}
         
         try {
-            if (mediaRecorder != null) {
-                mediaRecorder.stop();
-                mediaRecorder.reset();
-                
-                activity.runOnUiThread(() -> {
-                    statusView.setText("Video Saved!");
-                    Toast.makeText(activity, "Video saved to Movies folder", Toast.LENGTH_LONG).show();
-                });
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            activity.runOnUiThread(() -> 
-                Toast.makeText(activity, "Error stopping recording", Toast.LENGTH_SHORT).show());
-        }
+            mediaRecorder.stop();
+            mediaRecorder.reset();
+        } catch (Exception e) {}
         
+        activity.runOnUiThread(() -> statusView.setText("Saved"));
         startPreview(); 
     }
     
     public void closeCamera() {
         closePreviewSession();
-        if (cameraDevice != null) { 
-            cameraDevice.close(); 
-            cameraDevice = null; 
-        }
-        if (mediaRecorder != null) { 
-            mediaRecorder.release(); 
-            mediaRecorder = null; 
-        }
+        if (cameraDevice != null) { cameraDevice.close(); cameraDevice = null; }
+        if (mediaRecorder != null) { mediaRecorder.release(); mediaRecorder = null; }
         stopBackgroundThread();
     }
 
     private void closePreviewSession() {
-        if (captureSession != null) { 
-            captureSession.close(); 
-            captureSession = null; 
-        }
+        if (captureSession != null) { captureSession.close(); captureSession = null; }
     }
 
     private void startBackgroundThread() {
@@ -249,13 +272,8 @@ public class Camera2VideoRecorder {
     private void stopBackgroundThread() {
         if (backgroundThread != null) {
             backgroundThread.quitSafely();
-            try { 
-                backgroundThread.join(); 
-                backgroundThread = null; 
-                backgroundHandler = null; 
-            } catch (InterruptedException e) { 
-                e.printStackTrace(); 
-            }
+            try { backgroundThread.join(); backgroundThread = null; backgroundHandler = null; } 
+            catch (InterruptedException e) { e.printStackTrace(); }
         }
     }
 }
