@@ -2,9 +2,11 @@ package com.simple2fps.camera;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Size;
 import android.view.TextureView;
 import android.widget.Button;
@@ -36,13 +38,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        / ⭐ AGGIUNGI QUESTO BLOCCO - Leggi parametri da MacroDroid
-        Intent intent = getIntent();
-        final int targetFps = intent.getIntExtra("fps", 2);
-        final int duration = intent.getIntExtra("duration", 0);
-        final String quality = intent.getStringExtra("quality"); // es. "1920x1080" o "fhd"
-        final boolean autoStart = intent.getBooleanExtra("auto_start", false);
-
 
         textureView = findViewById(R.id.textureView);
         recordButton = findViewById(R.id.recordButton);
@@ -58,7 +53,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         fpsSpinner.setAdapter(fpsAdapter);
         fpsSpinner.setSelection(1); // Default 2 FPS
 
-        // Resolution Spinner (popolato dopo apertura camera)
+        // Resolution Spinner
         setupResolutionSpinner();
 
         textureView.setSurfaceTextureListener(this);
@@ -83,7 +78,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         for (Size size : availableResolutions) {
             String label = size.getWidth() + " x " + size.getHeight();
             
-            // Aggiungi label per risoluzioni comuni
             if (size.getWidth() == 3840 && size.getHeight() == 2160) {
                 label += " (4K UHD)";
             } else if (size.getWidth() == 2560 && size.getHeight() == 1440) {
@@ -106,7 +100,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         );
         resolutionSpinner.setAdapter(resAdapter);
         
-        // Seleziona Full HD (1920x1080) se disponibile
+        // Seleziona Full HD se disponibile
         int defaultIndex = 0;
         for (int i = 0; i < availableResolutions.size(); i++) {
             Size size = availableResolutions.get(i);
@@ -164,21 +158,64 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         fpsSpinner.setEnabled(true);
         resolutionSpinner.setEnabled(true);
     }
+    
+    // MacroDroid support
+    private void startMacroDroidRecording(int fps, String quality, int duration) {
+        // Imposta FPS
+        for (int i = 0; i < fpsSpinner.getCount(); i++) {
+            String item = fpsSpinner.getItemAtPosition(i).toString();
+            if (item.startsWith(fps + " ")) {
+                fpsSpinner.setSelection(i);
+                break;
+            }
+        }
+        
+        // Imposta risoluzione
+        if (quality != null) {
+            for (int i = 0; i < availableResolutions.size(); i++) {
+                Size size = availableResolutions.get(i);
+                String sizeStr = size.getWidth() + "x" + size.getHeight();
+                
+                if (quality.equals(sizeStr) || 
+                    (quality.equalsIgnoreCase("fhd") && size.getWidth() == 1920) ||
+                    (quality.equalsIgnoreCase("hd") && size.getWidth() == 1280) ||
+                    (quality.equalsIgnoreCase("4k") && size.getWidth() == 3840)) {
+                    resolutionSpinner.setSelection(i);
+                    recorder.setVideoSize(size);
+                    break;
+                }
+            }
+        }
+        
+        // Inizia registrazione
+        startRecording();
+        
+        // Auto-stop dopo duration
+        if (duration > 0) {
+            new Handler().postDelayed(() -> {
+                if (isRecording) {
+                    stopRecording();
+                    finish();
+                }
+            }, duration * 1000);
+        }
+    }
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         if (checkPermissions()) {
             recorder.openCamera(width, height);
-        }
-        // ⭐ AGGIUNGI QUESTO - Auto-start se richiesto
-        Intent intent = getIntent();
-        if (intent.getBooleanExtra("auto_start", false)) {
-            new Handler().postDelayed(() -> {
-                int fps = intent.getIntExtra("fps", 2);
-                String quality = intent.getStringExtra("quality");
-                int duration = intent.getIntExtra("duration", 30);
-                startMacroDroidRecording(fps, quality, duration);
-            }, 1500); // Aspetta 1.5 sec per inizializzare camera
+            
+            // Auto-start se richiesto da MacroDroid
+            Intent intent = getIntent();
+            if (intent.getBooleanExtra("auto_start", false)) {
+                new Handler().postDelayed(() -> {
+                    int fps = intent.getIntExtra("fps", 2);
+                    String quality = intent.getStringExtra("quality");
+                    int duration = intent.getIntExtra("duration", 30);
+                    startMacroDroidRecording(fps, quality, duration);
+                }, 1500);
+            }
         }
     }
 
@@ -218,46 +255,5 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
         recorder.closeCamera();
         super.onPause();
-    }
-    private void startMacroDroidRecording(int fps, String quality, int duration) {
-        // Imposta FPS
-        for (int i = 0; i < fpsSpinner.getCount(); i++) {
-            String item = fpsSpinner.getItemAtPosition(i).toString();
-            if (item.startsWith(fps + " ")) {
-                fpsSpinner.setSelection(i);
-                break;
-            }
-        }
-        
-        // Imposta risoluzione
-        if (quality != null) {
-            // Supporta sia "1920x1080" che "fhd"
-            for (int i = 0; i < availableResolutions.size(); i++) {
-                Size size = availableResolutions.get(i);
-                String sizeStr = size.getWidth() + "x" + size.getHeight();
-                
-                if (quality.equals(sizeStr) || 
-                    (quality.equalsIgnoreCase("fhd") && size.getWidth() == 1920) ||
-                    (quality.equalsIgnoreCase("hd") && size.getWidth() == 1280) ||
-                    (quality.equalsIgnoreCase("4k") && size.getWidth() == 3840)) {
-                    resolutionSpinner.setSelection(i);
-                    recorder.setVideoSize(size);
-                    break;
-                }
-            }
-        }
-        
-        // Inizia registrazione
-        startRecording();
-        
-        // Auto-stop dopo duration
-        if (duration > 0) {
-            new Handler().postDelayed(() -> {
-                if (isRecording) {
-                    stopRecording();
-                    finish(); // Chiudi app
-                }
-            }, duration * 1000);
-        }
     }
 }
