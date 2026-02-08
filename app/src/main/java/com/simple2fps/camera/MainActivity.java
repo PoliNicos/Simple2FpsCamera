@@ -116,23 +116,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
     }
 
-        // Update the recordButton listener
-        recordButton.setOnClickListener(v -> {
-            if (isPhotoMode) {
-                // Manual Photo Capture
-                capturePhotoManual();
-            } else {
-                // Video Logic
-                if (!isRecording) {
-                    startRecording();
-                } else {
-                    stopRecording();
-                }
-            }
-        });
-
-    }
-
     // VERSION UNIQUE ET COMPLÈTE DE LA MÉTHODE
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
