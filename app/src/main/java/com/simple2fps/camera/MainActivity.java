@@ -43,9 +43,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);        
+        super.onCreate(savedInstanceState);
         
-        // Background mode support
+        // ← UNA SOLA dichiarazione Intent
         Intent intent = getIntent();
         boolean backgroundMode = intent.getBooleanExtra("background", false);
         
@@ -54,21 +54,21 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             );
+            
+            // Keep screen on
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            
             moveTaskToBack(true);
         }
         
         setContentView(R.layout.activity_main);
-        // Keep screen on durante registrazione background
-        Intent intent = getIntent();
-        if (intent.getBooleanExtra("background", false)) {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }
 
         textureView = findViewById(R.id.textureView);
         recordButton = findViewById(R.id.recordButton);
         statusText = findViewById(R.id.statusText);
         fpsSpinner = findViewById(R.id.fpsSpinner);
         resolutionSpinner = findViewById(R.id.resolutionSpinner);
+        modeButton = findViewById(R.id.modeButton);
 
         recorder = new Camera2VideoRecorder(this, textureView, statusText);
 
@@ -82,37 +82,39 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
         textureView.setSurfaceTextureListener(this);
 
-        recordButton.setOnClickListener(v -> {
-            if (!isRecording) {
-                startRecording();
+        modeButton.setOnClickListener(v -> {
+            if (isRecording) return;
+
+            isPhotoMode = !isPhotoMode;
+            if (isPhotoMode) {
+                modeButton.setText("MODE: PHOTO");
+                recordButton.setText("Take Photo");
+                recordButton.setBackgroundColor(0xFF0000FF);
+                fpsSpinner.setVisibility(android.view.View.GONE);
             } else {
-                stopRecording();
+                modeButton.setText("MODE: VIDEO");
+                recordButton.setText("Start Recording");
+                recordButton.setBackgroundColor(0xFFFF0000);
+                fpsSpinner.setVisibility(android.view.View.VISIBLE);
+            }
+        });
+
+        recordButton.setOnClickListener(v -> {
+            if (isPhotoMode) {
+                capturePhotoManual();
+            } else {
+                if (!isRecording) {
+                    startRecording();
+                } else {
+                    stopRecording();
+                }
             }
         });
 
         if (!checkPermissions()) {
             requestPermissions(REQUIRED_PERMISSIONS, 101);
         }
-
-        // Inside onCreate...
-        modeButton = findViewById(R.id.modeButton);
-
-        modeButton.setOnClickListener(v -> {
-            if (isRecording) return; // Prevent switching while recording
-
-            isPhotoMode = !isPhotoMode; // Toggle
-            if (isPhotoMode) {
-                modeButton.setText("MODE: PHOTO");
-                recordButton.setText("Take Photo");
-                recordButton.setBackgroundColor(0xFF0000FF); // Blue for photo
-                fpsSpinner.setVisibility(android.view.View.GONE); // Hide FPS for photo
-            } else {
-                modeButton.setText("MODE: VIDEO");
-                recordButton.setText("Start Recording");
-                recordButton.setBackgroundColor(0xFFFF0000); // Red for video
-                fpsSpinner.setVisibility(android.view.View.VISIBLE);
-            }
-        });
+    }
 
         // Update the recordButton listener
         recordButton.setOnClickListener(v -> {
