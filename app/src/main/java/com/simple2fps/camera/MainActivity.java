@@ -24,6 +24,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     private TextureView textureView;
     private Button recordButton;
+    private Button modeButton;
+    private boolean isPhotoMode = false; // Tracks if we are in Photo or Video mode
     private TextView statusText;
     private Camera2PhotoCapture photoCapture;
     private Spinner fpsSpinner;
@@ -41,6 +43,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
         
         // Background mode support
         Intent intent = getIntent();
@@ -85,6 +88,42 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         if (!checkPermissions()) {
             requestPermissions(REQUIRED_PERMISSIONS, 101);
         }
+
+        // Inside onCreate...
+        modeButton = findViewById(R.id.modeButton);
+
+        modeButton.setOnClickListener(v -> {
+            if (isRecording) return; // Prevent switching while recording
+
+            isPhotoMode = !isPhotoMode; // Toggle
+            if (isPhotoMode) {
+                modeButton.setText("MODE: PHOTO");
+                recordButton.setText("Take Photo");
+                recordButton.setBackgroundColor(0xFF0000FF); // Blue for photo
+                fpsSpinner.setVisibility(android.view.View.GONE); // Hide FPS for photo
+            } else {
+                modeButton.setText("MODE: VIDEO");
+                recordButton.setText("Start Recording");
+                recordButton.setBackgroundColor(0xFFFF0000); // Red for video
+                fpsSpinner.setVisibility(android.view.View.VISIBLE);
+            }
+        });
+
+        // Update the recordButton listener
+        recordButton.setOnClickListener(v -> {
+            if (isPhotoMode) {
+                // Manual Photo Capture
+                capturePhotoManual();
+            } else {
+                // Video Logic
+                if (!isRecording) {
+                    startRecording();
+                } else {
+                    stopRecording();
+                }
+            }
+        });
+
     }
 
     // VERSION UNIQUE ET COMPLÈTE DE LA MÉTHODE
@@ -113,7 +152,37 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         }
     }
+    private void capturePhotoManual() {
+        // 1. Get size from Spinner
+        Size photoSize = null;
+        int selectedPos = resolutionSpinner.getSelectedItemPosition();
+        if (availableResolutions != null && selectedPos < availableResolutions.size()) {
+            photoSize = availableResolutions.get(selectedPos);
+        } else {
+            photoSize = new Size(1920, 1080);
+        }
 
+        // 2. Initialize Capture
+        photoCapture = new Camera2PhotoCapture(this, recorder.cameraDevice, recorder.backgroundHandler);
+        photoCapture.setPhotoSize(photoSize);
+        
+        // 3. Capture
+        statusText.setText("Capturing photo...");
+        photoCapture.capturePhoto(null, new Camera2PhotoCapture.PhotoCallback() {
+            @Override
+            public void onPhotoSaved(String filepath) {
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Photo Saved: " + filepath, Toast.LENGTH_SHORT).show();
+                    statusText.setText("Photo saved!");
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Error: " + error, Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
     private void capturePhotoFromIntent(Intent intent) {
         String quality = intent.getStringExtra("quality");
         String filepath = intent.getStringExtra("filepath");

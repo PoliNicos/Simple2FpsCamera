@@ -71,13 +71,20 @@
 
         <!-- Record Button -->
         <Button
+            android:id="@+id/modeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MODE: VIDEO" />
+            
+        <Button
             android:id="@+id/recordButton"
             android:layout_width="match_parent"
             android:layout_height="60dp"
             android:text="Start Recording"
             android:textSize="18sp"
             android:backgroundTint="#FF0000" />
-
+        
+            
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
