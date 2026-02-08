@@ -235,6 +235,13 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     Toast.makeText(MainActivity.this, "Photo saved: " + filepath, Toast.LENGTH_LONG).show();
                     finish(); 
                 });
+                // CHECK THE FLAG SENT BY MACRODROID
+                if (getIntent().getBooleanExtra("finish_after", false)) {
+                    // Give the system a tiny moment (300ms) to finish writing the file
+                    new Handler().postDelayed(() -> {
+                        finishAndRemoveTask(); 
+                    }, 300);
+                }
             }
             
             @Override
@@ -243,6 +250,13 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     Toast.makeText(MainActivity.this, "Error: " + error, Toast.LENGTH_LONG).show();
                     finish();
                 });
+            }
+            @Override
+            public void onError(String error) {
+                // If it fails, close anyway so the app doesn't hang open
+                if (getIntent().getBooleanExtra("finish_after", false)) {
+                    finishAndRemoveTask();
+                }
             }
         });
     }
