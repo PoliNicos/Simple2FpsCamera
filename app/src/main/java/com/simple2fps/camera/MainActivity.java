@@ -1,6 +1,5 @@
 package com.simple2fps.camera;
 
-import android.view.WindowManager;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
@@ -10,6 +9,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.util.Size;
 import android.view.TextureView;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -39,19 +39,18 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
+        // Background mode support
         Intent intent = getIntent();
         boolean backgroundMode = intent.getBooleanExtra("background", false);
         
         if (backgroundMode) {
-            // Nascondi completamente lo schermo
             getWindow().setFlags(
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             );
-            
-            // Minimizza immediatamente
             moveTaskToBack(true);
         }
+        
         setContentView(R.layout.activity_main);
 
         textureView = findViewById(R.id.textureView);
@@ -66,9 +65,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         String[] fpsItems = new String[]{"1 FPS", "2 FPS", "5 FPS", "10 FPS", "15 FPS", "24 FPS", "30 FPS"};
         ArrayAdapter<String> fpsAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, fpsItems);
         fpsSpinner.setAdapter(fpsAdapter);
-        fpsSpinner.setSelection(1); // Default 2 FPS
+        fpsSpinner.setSelection(1);
 
-        // Resolution Spinner
         setupResolutionSpinner();
 
         textureView.setSurfaceTextureListener(this);
@@ -115,7 +113,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         );
         resolutionSpinner.setAdapter(resAdapter);
         
-        // Seleziona Full HD se disponibile
         int defaultIndex = 0;
         for (int i = 0; i < availableResolutions.size(); i++) {
             Size size = availableResolutions.get(i);
@@ -148,17 +145,17 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private void startRecording() {
         String fpsSelected = fpsSpinner.getSelectedItem().toString();
         int fps = Integer.parseInt(fpsSelected.split(" ")[0]);
-        // Leggi custom path dall'Intent (se presente)
-        Intent intent = getIntent();
-        String customPath = intent.getStringExtra("filepath");
-
+        
         int resPosition = resolutionSpinner.getSelectedItemPosition();
         if (resPosition >= 0 && resPosition < availableResolutions.size()) {
             Size resolution = availableResolutions.get(resPosition);
             recorder.setVideoSize(resolution);
         }
         
-        recorder.startRecording(fps);
+        Intent intent = getIntent();
+        String customPath = intent.getStringExtra("filepath");
+        
+        recorder.startRecording(fps, customPath);
         recordButton.setText("Stop Recording");
         recordButton.setBackgroundColor(0xFF00AA00);
         isRecording = true;
@@ -177,14 +174,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         resolutionSpinner.setEnabled(true);
     }
     
-    // MacroDroid support
-    private void startMacroDroidRecording(int fps, String quality, int duration) {
-        // Imposta FPS
-        // Se c'è filepath custom, passalo
-        Intent intent = getIntent();
-        if (filepath != null && !filepath.isEmpty()) {
-            intent.putExtra("filepath", filepath);
-        }
+    private void startMacroDroidRecording(int fps, String quality, int duration, String filepath) {
         for (int i = 0; i < fpsSpinner.getCount(); i++) {
             String item = fpsSpinner.getItemAtPosition(i).toString();
             if (item.startsWith(fps + " ")) {
@@ -193,7 +183,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         }
         
-        // Imposta risoluzione
         if (quality != null) {
             for (int i = 0; i < availableResolutions.size(); i++) {
                 Size size = availableResolutions.get(i);
@@ -210,10 +199,13 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         }
         
-        // Inizia registrazione
+        Intent intent = getIntent();
+        if (filepath != null && !filepath.isEmpty()) {
+            intent.putExtra("filepath", filepath);
+        }
+        
         startRecording();
         
-        // Auto-stop dopo duration
         if (duration > 0) {
             new Handler().postDelayed(() -> {
                 if (isRecording) {
@@ -229,7 +221,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         if (checkPermissions()) {
             recorder.openCamera(width, height);
             
-            // Auto-start se richiesto da MacroDroid
             Intent intent = getIntent();
             if (intent.getBooleanExtra("auto_start", false)) {
                 new Handler().postDelayed(() -> {

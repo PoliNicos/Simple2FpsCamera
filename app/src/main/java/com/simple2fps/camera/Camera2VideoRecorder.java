@@ -17,11 +17,14 @@ import android.view.TextureView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class Camera2VideoRecorder {
     private static final String TAG = "Camera2VideoRecorder";
@@ -166,7 +169,7 @@ public class Camera2VideoRecorder {
         } catch (CameraAccessException e) { e.printStackTrace(); }
     }
 
-    public void startRecording(int fps) {
+    public void startRecording(int fps, String customPath) {
         this.selectedFps = fps;
         closePreviewSession();
         
@@ -176,18 +179,15 @@ public class Camera2VideoRecorder {
         try {
             File file;
             if (customPath != null && !customPath.isEmpty()) {
-                // Usa path custom
                 file = new File(customPath);
-                // Crea folder se non esiste
                 File parentDir = file.getParentFile();
                 if (parentDir != null && !parentDir.exists()) {
                     parentDir.mkdirs();
                 }
             } else {
-                // Default path
                 file = new File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), 
-                    new SimpleDateFormat("yyMMdd_HHmm", Locale.US).format(new Date()) + ".mp4"
+                    new SimpleDateFormat("yyMMdd_HHmmss", Locale.US).format(new Date()) + ".mp4"
                 );
             }
             
