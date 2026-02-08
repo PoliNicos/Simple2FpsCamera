@@ -32,6 +32,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private Spinner resolutionSpinner;
     private Camera2VideoRecorder recorder;
     private boolean isRecording = false;
+    private boolean isBackgroundRecording = false; // ← NUOVO FLAG
     
     private List<Size> availableResolutions;
 
@@ -42,8 +43,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        
+        super.onCreate(savedInstanceState);        
         
         // Background mode support
         Intent intent = getIntent();
@@ -58,6 +58,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
         
         setContentView(R.layout.activity_main);
+        // Keep screen on durante registrazione background
+        Intent intent = getIntent();
+        if (intent.getBooleanExtra("background", false)) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
 
         textureView = findViewById(R.id.textureView);
         recordButton = findViewById(R.id.recordButton);
@@ -349,6 +354,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     }
     
     private void startMacroDroidRecording(int fps, String quality, int duration, String filepath) {
+        // ← AGGIUNGI QUESTA LINEA
+        isBackgroundRecording = true; // Flag per non fermare in onPause
+
         for (int i = 0; i < fpsSpinner.getCount(); i++) {
             String item = fpsSpinner.getItemAtPosition(i).toString();
             if (item.startsWith(fps + " ")) {
@@ -384,7 +392,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             new Handler().postDelayed(() -> {
                 if (isRecording) {
                     stopRecording();
-                    finish();
+                    isBackgroundRecording = false; // ← AGGIUNGI QUESTA
+                    recorder.closeCamera();        // ← AGGIUNGI QUESTA
+                    finishAndRemoveTask();         // ← CAMBIA DA finish() a finishAndRemoveTask()
                 }
             }, duration * 1000);
         }
@@ -421,10 +431,16 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     protected void onPause() {
-        if (isRecording) {
+        // NON fermare registrazione se è background recording da MacroDroid
+        if (isRecording && !isBackgroundRecording) {
             stopRecording();
         }
-        recorder.closeCamera();
+        
+        // NON chiudere camera se registrazione in background
+        if (!isBackgroundRecording) {
+            recorder.closeCamera();
+        }
+        
         super.onPause();
-    }
+}
 }
