@@ -32,12 +32,12 @@ public class Camera2VideoRecorder {
     private Activity activity;
     private TextureView textureView;
     private TextView statusView;
-    private CameraDevice cameraDevice;
+    public CameraDevice cameraDevice;
+    public Handler backgroundHandler;
     private CaptureRequest.Builder previewRequestBuilder;
     private CameraCaptureSession captureSession;
     private MediaRecorder mediaRecorder;
     private HandlerThread backgroundThread;
-    private Handler backgroundHandler;
     private String cameraId;
     private int selectedFps = 2;
     private Size selectedVideoSize = null;

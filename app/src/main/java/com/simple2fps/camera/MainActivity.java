@@ -1,6 +1,7 @@
 package com.simple2fps.camera;
 
 import android.Manifest;
+import android.graphics.SurfaceTexture;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -23,6 +24,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private TextureView textureView;
     private Button recordButton;
     private TextView statusText;
+    private Camera2PhotoCapture photoCapture;
     private Spinner fpsSpinner;
     private Spinner resolutionSpinner;
     private Camera2VideoRecorder recorder;
@@ -82,6 +84,86 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         if (!checkPermissions()) {
             requestPermissions(REQUIRED_PERMISSIONS, 101);
         }
+    }
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+        if (checkPermissions()) {
+            recorder.openCamera(width, height);
+            
+            Intent intent = getIntent();
+            String mode = intent.getStringExtra("mode"); // "video" o "photo"
+            
+            if ("photo".equals(mode)) {
+                // PHOTO MODE
+                new Handler().postDelayed(() -> {
+                    capturePhotoFromIntent(intent);
+                }, 1500);
+            } else if (intent.getBooleanExtra("auto_start", false)) {
+                // VIDEO MODE (esistente)
+                new Handler().postDelayed(() -> {
+                    int fps = intent.getIntExtra("fps", 2);
+                    String quality = intent.getStringExtra("quality");
+                    int duration = intent.getIntExtra("duration", 30);
+                    String filepath = intent.getStringExtra("filepath");
+                    startMacroDroidRecording(fps, quality, duration, filepath);
+                }, 1500);
+            }
+        }
+    }
+    private void capturePhotoFromIntent(Intent intent) {
+        String quality = intent.getStringExtra("quality");
+        String filepath = intent.getStringExtra("filepath");
+        boolean nightMode = intent.getBooleanExtra("night_mode", false);
+        
+        // Determina risoluzione
+        Size photoSize = null;
+        if (quality != null) {
+            for (Size size : availableResolutions) {
+                if (quality.equalsIgnoreCase("fhd") && size.getWidth() == 1920) {
+                    photoSize = size;
+                    break;
+                } else if (quality.equalsIgnoreCase("4k") && size.getWidth() == 3840) {
+                    photoSize = size;
+                    break;
+                } else if (quality.equalsIgnoreCase("hd") && size.getWidth() == 1280) {
+                    photoSize = size;
+                    break;
+                }
+            }
+        }
+        
+        if (photoSize == null) {
+            photoSize = new Size(1920, 1080); // Default Full HD
+        }
+        
+        // Crea PhotoCapture
+        photoCapture = new Camera2PhotoCapture(
+            this,
+            recorder.cameraDevice, // Accedi alla camera aperta
+            recorder.backgroundHandler
+        );
+        
+        photoCapture.setPhotoSize(photoSize);
+        photoCapture.setNightMode(nightMode);
+        
+        // Cattura!
+        photoCapture.capturePhoto(filepath, new Camera2PhotoCapture.PhotoCallback() {
+            @Override
+            public void onPhotoSaved(String filepath) {
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Photo saved: " + filepath, Toast.LENGTH_LONG).show();
+                    finish(); // Chiudi app
+                });
+            }
+            
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Error: " + error, Toast.LENGTH_LONG).show();
+                    finish();
+                });
+            }
+        });
     }
 
     private void setupResolutionSpinner() {
