@@ -187,7 +187,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         String quality = intent.getStringExtra("quality");
         String filepath = intent.getStringExtra("filepath");
         boolean nightMode = intent.getBooleanExtra("night_mode", false);
-        
+        boolean hdr = intent.getBooleanExtra("hdr_mode", false);
+
         // Determina risoluzione
         Size photoSize = null;
         if (quality != null && availableResolutions != null) {
@@ -224,6 +225,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         
         photoCapture.setPhotoSize(photoSize);
         photoCapture.setNightMode(nightMode);
+        photoCapture.setHdrMode(hdr);
         
         // Cattura!
         photoCapture.capturePhoto(filepath, new Camera2PhotoCapture.PhotoCallback() {
