@@ -62,6 +62,18 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
         
         setContentView(R.layout.activity_main);
+        // ← AGGIUNGI QUESTO BLOCCO:
+        Intent intent = getIntent();
+        boolean hidePreview = intent.getBooleanExtra("hide_preview", false);
+
+        if (hidePreview) {
+            // Nascondi preview per risparmiare batteria
+            textureView = findViewById(R.id.textureView);
+            textureView.setVisibility(android.view.View.INVISIBLE);
+            // Rendi il TextureView molto piccolo (1x1 pixel)
+            textureView.getLayoutParams().width = 1;
+            textureView.getLayoutParams().height = 1;
+        }
 
         textureView = findViewById(R.id.textureView);
         recordButton = findViewById(R.id.recordButton);
@@ -225,13 +237,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     Toast.makeText(MainActivity.this, "Photo saved: " + filepath, Toast.LENGTH_LONG).show();
                     finish(); 
                 });
-                // CHECK THE FLAG SENT BY MACRODROID
-                if (getIntent().getBooleanExtra("finish_after", false)) {
-                    // Give the system a tiny moment (300ms) to finish writing the file
-                    new Handler().postDelayed(() -> {
-                        finishAndRemoveTask(); 
-                    }, 300);
-                }
+                new Handler().postDelayed(() -> {
+                    finishAndRemoveTask(); // Chiude app completamente
+                }, 300);
             }
             
             @Override
