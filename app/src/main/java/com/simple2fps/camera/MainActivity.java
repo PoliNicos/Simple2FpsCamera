@@ -5,7 +5,6 @@ import android.graphics.SurfaceTexture;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.SurfaceTexture;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Size;
@@ -16,6 +15,8 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.ArrayAdapter;
 import android.widget.AdapterView;
+import android.widget.Toast; // AJOUTÉ : Pour corriger l'erreur Toast
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -85,13 +86,15 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             requestPermissions(REQUIRED_PERMISSIONS, 101);
         }
     }
+
+    // VERSION UNIQUE ET COMPLÈTE DE LA MÉTHODE
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         if (checkPermissions()) {
             recorder.openCamera(width, height);
             
             Intent intent = getIntent();
-            String mode = intent.getStringExtra("mode"); // "video" o "photo"
+            String mode = intent.getStringExtra("mode"); // "video" ou "photo"
             
             if ("photo".equals(mode)) {
                 // PHOTO MODE
@@ -99,7 +102,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     capturePhotoFromIntent(intent);
                 }, 1500);
             } else if (intent.getBooleanExtra("auto_start", false)) {
-                // VIDEO MODE (esistente)
+                // VIDEO MODE
                 new Handler().postDelayed(() -> {
                     int fps = intent.getIntExtra("fps", 2);
                     String quality = intent.getStringExtra("quality");
@@ -110,6 +113,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         }
     }
+
     private void capturePhotoFromIntent(Intent intent) {
         String quality = intent.getStringExtra("quality");
         String filepath = intent.getStringExtra("filepath");
@@ -117,7 +121,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         
         // Determina risoluzione
         Size photoSize = null;
-        if (quality != null) {
+        if (quality != null && availableResolutions != null) {
             for (Size size : availableResolutions) {
                 if (quality.equalsIgnoreCase("fhd") && size.getWidth() == 1920) {
                     photoSize = size;
@@ -131,7 +135,13 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 }
             }
         }
-        
+        // B. Si aucune qualité n'est précisée dans l'Intent, on utilise le SPINNER
+        if (photoSize == null && availableResolutions != null && !availableResolutions.isEmpty()) {
+            int selectedPosition = resolutionSpinner.getSelectedItemPosition();
+            if (selectedPosition >= 0 && selectedPosition < availableResolutions.size()) {
+                photoSize = availableResolutions.get(selectedPosition);
+            }
+        }
         if (photoSize == null) {
             photoSize = new Size(1920, 1080); // Default Full HD
         }
@@ -139,7 +149,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         // Crea PhotoCapture
         photoCapture = new Camera2PhotoCapture(
             this,
-            recorder.cameraDevice, // Accedi alla camera aperta
+            recorder.cameraDevice, 
             recorder.backgroundHandler
         );
         
@@ -152,7 +162,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             public void onPhotoSaved(String filepath) {
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Photo saved: " + filepath, Toast.LENGTH_LONG).show();
-                    finish(); // Chiudi app
+                    finish(); 
                 });
             }
             
@@ -295,24 +305,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     finish();
                 }
             }, duration * 1000);
-        }
-    }
-
-    @Override
-    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-        if (checkPermissions()) {
-            recorder.openCamera(width, height);
-            
-            Intent intent = getIntent();
-            if (intent.getBooleanExtra("auto_start", false)) {
-                new Handler().postDelayed(() -> {
-                    int fps = intent.getIntExtra("fps", 2);
-                    String quality = intent.getStringExtra("quality");
-                    int duration = intent.getIntExtra("duration", 30);
-                    String filepath = intent.getStringExtra("filepath");
-                    startMacroDroidRecording(fps, quality, duration, filepath);
-                }, 1500);
-            }
         }
     }
 
