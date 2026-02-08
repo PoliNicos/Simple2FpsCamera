@@ -62,6 +62,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
         
         setContentView(R.layout.activity_main);
+        
 
         textureView = findViewById(R.id.textureView);
         recordButton = findViewById(R.id.recordButton);
@@ -178,6 +179,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         String filepath = intent.getStringExtra("filepath");
         boolean nightMode = intent.getBooleanExtra("night_mode", false);
         boolean hdr = intent.getBooleanExtra("hdr_mode", false);
+        boolean background = intent.getBooleanExtra("background", false);
+        boolean finishAfter = intent.getBooleanExtra("finish_after", true); // Par défaut true
 
         // Determina risoluzione
         Size photoSize = null;
@@ -223,15 +226,15 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             public void onPhotoSaved(String filepath) {
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Photo saved: " + filepath, Toast.LENGTH_LONG).show();
-                    finish(); 
+                    
+                    // Fermer l'application si demandé
+                    if (finishAfter) {
+                        // Délai pour laisser le système écrire le fichier
+                        new Handler().postDelayed(() -> {
+                            finishAndRemoveTask(); 
+                        }, 300);
+                    }
                 });
-                // CHECK THE FLAG SENT BY MACRODROID
-                if (getIntent().getBooleanExtra("finish_after", false)) {
-                    // Give the system a tiny moment (300ms) to finish writing the file
-                    new Handler().postDelayed(() -> {
-                        finishAndRemoveTask(); 
-                    }, 300);
-                }
             }
             
             @Override
