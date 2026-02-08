@@ -1,5 +1,6 @@
 package com.simple2fps.camera;
 
+import android.view.WindowManager;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
@@ -37,6 +38,20 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        Intent intent = getIntent();
+        boolean backgroundMode = intent.getBooleanExtra("background", false);
+        
+        if (backgroundMode) {
+            // Nascondi completamente lo schermo
+            getWindow().setFlags(
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            );
+            
+            // Minimizza immediatamente
+            moveTaskToBack(true);
+        }
         setContentView(R.layout.activity_main);
 
         textureView = findViewById(R.id.textureView);
@@ -133,7 +148,10 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private void startRecording() {
         String fpsSelected = fpsSpinner.getSelectedItem().toString();
         int fps = Integer.parseInt(fpsSelected.split(" ")[0]);
-        
+        // Leggi custom path dall'Intent (se presente)
+        Intent intent = getIntent();
+        String customPath = intent.getStringExtra("filepath");
+
         int resPosition = resolutionSpinner.getSelectedItemPosition();
         if (resPosition >= 0 && resPosition < availableResolutions.size()) {
             Size resolution = availableResolutions.get(resPosition);
@@ -162,6 +180,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     // MacroDroid support
     private void startMacroDroidRecording(int fps, String quality, int duration) {
         // Imposta FPS
+        // Se c'è filepath custom, passalo
+        Intent intent = getIntent();
+        if (filepath != null && !filepath.isEmpty()) {
+            intent.putExtra("filepath", filepath);
+        }
         for (int i = 0; i < fpsSpinner.getCount(); i++) {
             String item = fpsSpinner.getItemAtPosition(i).toString();
             if (item.startsWith(fps + " ")) {
@@ -213,7 +236,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     int fps = intent.getIntExtra("fps", 2);
                     String quality = intent.getStringExtra("quality");
                     int duration = intent.getIntExtra("duration", 30);
-                    startMacroDroidRecording(fps, quality, duration);
+                    String filepath = intent.getStringExtra("filepath");
+                    startMacroDroidRecording(fps, quality, duration, filepath);
                 }, 1500);
             }
         }

@@ -174,10 +174,22 @@ public class Camera2VideoRecorder {
         int videoHeight = selectedVideoSize != null ? selectedVideoSize.getHeight() : 1080;
         
         try {
-            File file = new File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), 
-                "REC_" + fps + "fps_" + videoWidth + "x" + videoHeight + "_" + System.currentTimeMillis() + ".mp4"
-            );
+            File file;
+            if (customPath != null && !customPath.isEmpty()) {
+                // Usa path custom
+                file = new File(customPath);
+                // Crea folder se non esiste
+                File parentDir = file.getParentFile();
+                if (parentDir != null && !parentDir.exists()) {
+                    parentDir.mkdirs();
+                }
+            } else {
+                // Default path
+                file = new File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), 
+                    new SimpleDateFormat("yyMMdd_HHmm", Locale.US).format(new Date()) + ".mp4"
+                );
+            }
             
             mediaRecorder = new MediaRecorder();
             mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
