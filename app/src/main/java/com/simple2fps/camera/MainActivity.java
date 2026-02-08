@@ -63,7 +63,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         
         setContentView(R.layout.activity_main);
         // ← AGGIUNGI QUESTO BLOCCO:
-        Intent intent = getIntent();
         boolean hidePreview = intent.getBooleanExtra("hide_preview", false);
 
         if (hidePreview) {
