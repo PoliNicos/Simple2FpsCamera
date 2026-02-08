@@ -248,15 +248,12 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             public void onError(String error) {
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Error: " + error, Toast.LENGTH_LONG).show();
-                    finish();
+                    
+                    // Still close the app on error if requested, so it doesn't get stuck
+                    if (getIntent().getBooleanExtra("finish_after", false)) {
+                        finishAndRemoveTask();
+                    }
                 });
-            }
-            @Override
-            public void onError(String error) {
-                // If it fails, close anyway so the app doesn't hang open
-                if (getIntent().getBooleanExtra("finish_after", false)) {
-                    finishAndRemoveTask();
-                }
             }
         });
     }
