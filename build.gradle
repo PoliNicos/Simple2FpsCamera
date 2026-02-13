@@ -7,7 +7,6 @@ buildscript {
     dependencies {
         // This is the Android Gradle Plugin version
         classpath 'com.android.tools.build:gradle:8.0.2'
-        implementation 'androidx.core:core:1.12.0'
     }
 }
 // Top-level build file
