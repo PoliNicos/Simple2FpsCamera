@@ -4,9 +4,11 @@ import android.Manifest;
 import android.graphics.SurfaceTexture;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.util.Size;
 import android.view.TextureView;
 import android.view.WindowManager;
@@ -31,10 +33,15 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private Spinner fpsSpinner;
     private Spinner resolutionSpinner;
     private Camera2VideoRecorder recorder;
+    
+    // Flags di stato
     private boolean isRecording = false;
     private boolean isBackgroundRecording = false;
     private boolean isProcessingMacroDroid = false;
     private boolean isBackgroundPhoto = false;
+    
+    // WakeLock per registrazioni con schermo spento
+    private PowerManager.WakeLock wakeLock;
     
     private List<Size> availableResolutions;
 
@@ -47,34 +54,23 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Vérifier si l'app est lancée en arrière-plan
         Intent intent = getIntent();
         boolean backgroundMode = intent.getBooleanExtra("background", false);
+        boolean hidePreview = intent.getBooleanExtra("hide_preview", false);
         
+        // Configurazione background mode
         if (backgroundMode) {
             getWindow().setFlags(
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             );
-            
-            // Garder l'écran allumé
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            
             moveTaskToBack(true);
         }
         
-        // Masquer la prévisualisation si demandé
-        boolean hidePreview = intent.getBooleanExtra("hide_preview", false);
-        if (hidePreview || backgroundMode) {
-            getWindow().setFlags(
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-            );
-        }
-        
         setContentView(R.layout.activity_main);
-        
-        // Initialiser les vues
+
+        // Inizializzazione views
         textureView = findViewById(R.id.textureView);
         recordButton = findViewById(R.id.recordButton);
         statusText = findViewById(R.id.statusText);
@@ -82,9 +78,12 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         resolutionSpinner = findViewById(R.id.resolutionSpinner);
         modeButton = findViewById(R.id.modeButton);
 
-        // Masquer la prévisualisation si demandé
+        // Nascondi preview se richiesto (risparmio batteria)
         if (hidePreview || backgroundMode) {
-            textureView.setVisibility(android.view.View.GONE);
+            textureView.setVisibility(android.view.View.INVISIBLE);
+            textureView.getLayoutParams().width = 1;
+            textureView.getLayoutParams().height = 1;
+            
             recordButton.setVisibility(android.view.View.GONE);
             modeButton.setVisibility(android.view.View.GONE);
             fpsSpinner.setVisibility(android.view.View.GONE);
@@ -94,16 +93,17 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
         recorder = new Camera2VideoRecorder(this, textureView, statusText);
 
-        // FPS Spinner
+        // Setup FPS Spinner
         String[] fpsItems = new String[]{"1 FPS", "2 FPS", "5 FPS", "10 FPS", "15 FPS", "24 FPS", "30 FPS"};
         ArrayAdapter<String> fpsAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, fpsItems);
         fpsSpinner.setAdapter(fpsAdapter);
-        fpsSpinner.setSelection(1);
+        fpsSpinner.setSelection(1); // Default 2 FPS
 
         setupResolutionSpinner();
 
         textureView.setSurfaceTextureListener(this);
 
+        // Mode button (Photo/Video switch)
         modeButton.setOnClickListener(v -> {
             if (isRecording) return;
 
@@ -121,6 +121,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         });
 
+        // Record button
         recordButton.setOnClickListener(v -> {
             if (isPhotoMode) {
                 capturePhotoManual();
@@ -141,14 +142,12 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        setIntent(intent); // Mettre à jour l'Intent avec le nouveau
+        setIntent(intent);
         
-        // Vérifier si nous devons traiter une commande MacroDroid
         String mode = intent.getStringExtra("mode");
         boolean autoStart = intent.getBooleanExtra("auto_start", false);
         
         if (mode != null || autoStart) {
-            // Attendre que la caméra soit prête
             new Handler().postDelayed(() -> {
                 processMacroDroidIntent(intent);
             }, 500);
@@ -160,16 +159,15 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         if (checkPermissions()) {
             recorder.openCamera(width, height);
             
-            // Attendre que la caméra soit initialisée puis traiter l'Intent
             new Handler().postDelayed(() -> {
                 processMacroDroidIntent(getIntent());
-            }, 500);
+            }, 1500);
         }
     }
 
     private void processMacroDroidIntent(Intent intent) {
         if (isProcessingMacroDroid) {
-            return; // Éviter les commandes multiples simultanées
+            return; // Evita comandi multipli simultanei
         }
         
         isProcessingMacroDroid = true;
@@ -179,11 +177,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         boolean isVideoMode = autoStart && !"photo".equals(mode);
         
         if ("photo".equals(mode)) {
-            // Définir le flag pour la photo en arrière-plan
             isBackgroundPhoto = intent.getBooleanExtra("background", false) || 
                                intent.getBooleanExtra("hide_preview", false);
             
-            // Arrêter l'enregistrement en cours si nécessaire
             if (isRecording) {
                 stopRecording();
                 new Handler().postDelayed(() -> {
@@ -195,11 +191,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 isProcessingMacroDroid = false;
             }
         } else if (isVideoMode) {
-            // Arrêter la photo en cours si nécessaire
-            if (photoCapture != null) {
-                // On ne peut pas annuler facilement une capture photo, donc on attend
-            }
-            
             int fps = intent.getIntExtra("fps", 2);
             String quality = intent.getStringExtra("quality");
             int duration = intent.getIntExtra("duration", 30);
@@ -213,7 +204,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     }
 
     private void capturePhotoManual() {
-        // 1. Get size from Spinner
         Size photoSize = null;
         int selectedPos = resolutionSpinner.getSelectedItemPosition();
         if (availableResolutions != null && selectedPos < availableResolutions.size()) {
@@ -222,11 +212,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             photoSize = new Size(1920, 1080);
         }
 
-        // 2. Initialize Capture
         photoCapture = new Camera2PhotoCapture(this, recorder.cameraDevice, recorder.backgroundHandler);
         photoCapture.setPhotoSize(photoSize);
         
-        // 3. Capture
         statusText.setText("Capturing photo...");
         photoCapture.capturePhoto(null, new Camera2PhotoCapture.PhotoCallback() {
             @Override
@@ -249,10 +237,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         String filepath = intent.getStringExtra("filepath");
         boolean nightMode = intent.getBooleanExtra("night_mode", false);
         boolean hdr = intent.getBooleanExtra("hdr_mode", false);
-        boolean background = intent.getBooleanExtra("background", false);
-        boolean finishAfter = intent.getBooleanExtra("finish_after", true);
 
-        // Déterminer la résolution
         Size photoSize = null;
         if (quality != null && availableResolutions != null) {
             for (Size size : availableResolutions) {
@@ -269,54 +254,45 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         }
         
-        // Si aucune qualité n'est précisée, utiliser le SPINNER
         if (photoSize == null && availableResolutions != null && !availableResolutions.isEmpty()) {
             int selectedPosition = resolutionSpinner.getSelectedItemPosition();
             if (selectedPosition >= 0 && selectedPosition < availableResolutions.size()) {
                 photoSize = availableResolutions.get(selectedPosition);
             }
         }
+        
         if (photoSize == null) {
-            photoSize = new Size(1920, 1080); // Default Full HD
+            photoSize = new Size(1920, 1080);
         }
         
-        // Créer PhotoCapture
-        photoCapture = new Camera2PhotoCapture(
-            this,
-            recorder.cameraDevice, 
-            recorder.backgroundHandler
-        );
-        
+        photoCapture = new Camera2PhotoCapture(this, recorder.cameraDevice, recorder.backgroundHandler);
         photoCapture.setPhotoSize(photoSize);
         photoCapture.setNightMode(nightMode);
         photoCapture.setHdrMode(hdr);
         
-        // Capturer!
         photoCapture.capturePhoto(filepath, new Camera2PhotoCapture.PhotoCallback() {
             @Override
             public void onPhotoSaved(String filepath) {
                 runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, "Photo saved: " + filepath, Toast.LENGTH_LONG).show();
-                    
-                    // Fermer l'app si demandé
-                    if (finishAfter) {
-                        new Handler().postDelayed(() -> {
-                            finishAndRemoveTask(); 
-                        }, 300);
-                    }
+                    Toast.makeText(MainActivity.this, "Photo saved: " + filepath, Toast.LENGTH_SHORT).show();
                 });
+                
+                // Auto-close sempre dopo foto
+                new Handler().postDelayed(() -> {
+                    finishAndRemoveTask();
+                }, 300);
             }
             
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Error: " + error, Toast.LENGTH_LONG).show();
-                    
-                    // Fermer même en cas d'erreur
-                    if (finishAfter) {
-                        finishAndRemoveTask();
-                    }
                 });
+                
+                // Chiudi anche in caso di errore
+                new Handler().postDelayed(() -> {
+                    finishAndRemoveTask();
+                }, 300);
             }
         });
     }
@@ -413,6 +389,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     
     private void startMacroDroidRecording(int fps, String quality, int duration, String filepath) {
         isBackgroundRecording = true;
+        
+        // CRITICO: Acquire WakeLock per tenere CPU attiva anche con schermo spento
+        acquireWakeLock();
 
         for (int i = 0; i < fpsSpinner.getCount(); i++) {
             String item = fpsSpinner.getItemAtPosition(i).toString();
@@ -452,21 +431,52 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     isBackgroundRecording = false;
                     recorder.closeCamera();
                     
-                    // Fermer seulement si finish_after est true
-                    if (intent.getBooleanExtra("finish_after", false)) {
-                        finishAndRemoveTask();
-                    }
+                    // Release WakeLock
+                    releaseWakeLock();
+                    
+                    // Chiudi app
+                    finishAndRemoveTask();
                 }
             }, duration * 1000);
         }
     }
+    
+    // ========== WAKELOCK METHODS ==========
+    
+    private void acquireWakeLock() {
+        if (wakeLock == null) {
+            PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            wakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "Simple2FpsCamera::RecordingWakeLock"
+            );
+            wakeLock.setReferenceCounted(false);
+        }
+        
+        if (!wakeLock.isHeld()) {
+            wakeLock.acquire();
+            android.util.Log.d("WakeLock", "ACQUIRED - CPU stays awake during recording");
+        }
+    }
+    
+    private void releaseWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+            android.util.Log.d("WakeLock", "RELEASED - CPU can sleep now");
+        }
+    }
+
+    // ========== LIFECYCLE METHODS ==========
 
     @Override
     public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {}
 
     @Override
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        recorder.closeCamera();
+        // Non chiudere camera se registrazione background
+        if (!isBackgroundRecording && !isBackgroundPhoto) {
+            recorder.closeCamera();
+        }
         return true;
     }
 
@@ -484,13 +494,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     protected void onResume() {
         super.onResume();
         
-        // Vérifier si un Intent MacroDroid est en attente
         Intent intent = getIntent();
         String mode = intent.getStringExtra("mode");
         boolean autoStart = intent.getBooleanExtra("auto_start", false);
         
         if (textureView.isAvailable() && checkPermissions() && (mode != null || autoStart)) {
-            // Si la surface est prête, traiter l'Intent immédiatement
             new Handler().postDelayed(() -> {
                 processMacroDroidIntent(intent);
             }, 500);
@@ -503,16 +511,23 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     protected void onPause() {
-        // Ne pas fermer l'enregistrement si c'est un enregistrement en arrière-plan
+        // Non fermare registrazione se background mode
         if (isRecording && !isBackgroundRecording && !isBackgroundPhoto) {
             stopRecording();
         }
         
-        // Ne pas fermer la caméra si enregistrement ou photo en arrière-plan
+        // Non chiudere camera se background mode
         if (!isBackgroundRecording && !isBackgroundPhoto) {
             recorder.closeCamera();
         }
         
         super.onPause();
+    }
+    
+    @Override
+    protected void onDestroy() {
+        // Cleanup: release WakeLock
+        releaseWakeLock();
+        super.onDestroy();
     }
 }
