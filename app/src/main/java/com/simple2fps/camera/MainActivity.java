@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.util.Size;
@@ -34,13 +35,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private Spinner resolutionSpinner;
     private Camera2VideoRecorder recorder;
     
-    // Flags di stato
     private boolean isRecording = false;
     private boolean isBackgroundRecording = false;
     private boolean isProcessingMacroDroid = false;
     private boolean isBackgroundPhoto = false;
     
-    // WakeLock per registrazioni con schermo spento
     private PowerManager.WakeLock wakeLock;
     
     private List<Size> availableResolutions;
@@ -58,7 +57,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         boolean backgroundMode = intent.getBooleanExtra("background", false);
         boolean hidePreview = intent.getBooleanExtra("hide_preview", false);
         
-        // Configurazione background mode
         if (backgroundMode) {
             getWindow().setFlags(
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
@@ -70,7 +68,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         
         setContentView(R.layout.activity_main);
 
-        // Inizializzazione views
         textureView = findViewById(R.id.textureView);
         recordButton = findViewById(R.id.recordButton);
         statusText = findViewById(R.id.statusText);
@@ -78,7 +75,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         resolutionSpinner = findViewById(R.id.resolutionSpinner);
         modeButton = findViewById(R.id.modeButton);
 
-        // Nascondi preview se richiesto (risparmio batteria)
         if (hidePreview || backgroundMode) {
             textureView.setVisibility(android.view.View.INVISIBLE);
             textureView.getLayoutParams().width = 1;
@@ -93,20 +89,16 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
         recorder = new Camera2VideoRecorder(this, textureView, statusText);
 
-        // Setup FPS Spinner
         String[] fpsItems = new String[]{"1 FPS", "2 FPS", "5 FPS", "10 FPS", "15 FPS", "24 FPS", "30 FPS"};
         ArrayAdapter<String> fpsAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, fpsItems);
         fpsSpinner.setAdapter(fpsAdapter);
-        fpsSpinner.setSelection(1); // Default 2 FPS
+        fpsSpinner.setSelection(1);
 
         setupResolutionSpinner();
-
         textureView.setSurfaceTextureListener(this);
 
-        // Mode button (Photo/Video switch)
         modeButton.setOnClickListener(v -> {
             if (isRecording) return;
-
             isPhotoMode = !isPhotoMode;
             if (isPhotoMode) {
                 modeButton.setText("MODE: PHOTO");
@@ -121,7 +113,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         });
 
-        // Record button
         recordButton.setOnClickListener(v -> {
             if (isPhotoMode) {
                 capturePhotoManual();
@@ -167,7 +158,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     private void processMacroDroidIntent(Intent intent) {
         if (isProcessingMacroDroid) {
-            return; // Evita comandi multipli simultanei
+            return;
         }
         
         isProcessingMacroDroid = true;
@@ -277,7 +268,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     Toast.makeText(MainActivity.this, "Photo saved: " + filepath, Toast.LENGTH_SHORT).show();
                 });
                 
-                // Auto-close sempre dopo foto
                 new Handler().postDelayed(() -> {
                     finishAndRemoveTask();
                 }, 300);
@@ -289,7 +279,6 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     Toast.makeText(MainActivity.this, "Error: " + error, Toast.LENGTH_LONG).show();
                 });
                 
-                // Chiudi anche in caso di errore
                 new Handler().postDelayed(() -> {
                     finishAndRemoveTask();
                 }, 300);
@@ -390,7 +379,16 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private void startMacroDroidRecording(int fps, String quality, int duration, String filepath) {
         isBackgroundRecording = true;
         
-        // CRITICO: Acquire WakeLock per tenere CPU attiva anche con schermo spento
+        // START FOREGROUND SERVICE (CRITICO!)
+        Intent serviceIntent = new Intent(this, RecordingForegroundService.class);
+        serviceIntent.putExtra("mode", "video");
+        serviceIntent.putExtra("duration", duration);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+        
         acquireWakeLock();
 
         for (int i = 0; i < fpsSpinner.getCount(); i++) {
@@ -431,17 +429,17 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     isBackgroundRecording = false;
                     recorder.closeCamera();
                     
-                    // Release WakeLock
                     releaseWakeLock();
                     
-                    // Chiudi app
+                    // STOP FOREGROUND SERVICE
+                    Intent stopServiceIntent = new Intent(MainActivity.this, RecordingForegroundService.class);
+                    stopService(stopServiceIntent);
+                    
                     finishAndRemoveTask();
                 }
             }, duration * 1000);
         }
     }
-    
-    // ========== WAKELOCK METHODS ==========
     
     private void acquireWakeLock() {
         if (wakeLock == null) {
@@ -455,25 +453,22 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         
         if (!wakeLock.isHeld()) {
             wakeLock.acquire();
-            android.util.Log.d("WakeLock", "ACQUIRED - CPU stays awake during recording");
+            android.util.Log.d("WakeLock", "ACQUIRED");
         }
     }
     
     private void releaseWakeLock() {
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
-            android.util.Log.d("WakeLock", "RELEASED - CPU can sleep now");
+            android.util.Log.d("WakeLock", "RELEASED");
         }
     }
-
-    // ========== LIFECYCLE METHODS ==========
 
     @Override
     public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {}
 
     @Override
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        // Non chiudere camera se registrazione background
         if (!isBackgroundRecording && !isBackgroundPhoto) {
             recorder.closeCamera();
         }
@@ -511,12 +506,10 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     @Override
     protected void onPause() {
-        // Non fermare registrazione se background mode
         if (isRecording && !isBackgroundRecording && !isBackgroundPhoto) {
             stopRecording();
         }
         
-        // Non chiudere camera se background mode
         if (!isBackgroundRecording && !isBackgroundPhoto) {
             recorder.closeCamera();
         }
@@ -526,8 +519,12 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     
     @Override
     protected void onDestroy() {
-        // Cleanup: release WakeLock
         releaseWakeLock();
+        
+        // Stop service se ancora attivo
+        Intent serviceIntent = new Intent(this, RecordingForegroundService.class);
+        stopService(serviceIntent);
+        
         super.onDestroy();
     }
 }
