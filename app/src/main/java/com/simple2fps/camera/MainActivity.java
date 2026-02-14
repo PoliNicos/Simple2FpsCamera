@@ -498,7 +498,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 processMacroDroidIntent(intent);
             }, 500);
         } else if (textureView.isAvailable() && checkPermissions()) {
-            recorder.openCamera(textureView.getWidth(), textureView.getHeight());
+            recorder.openCamera();
         } else {
             textureView.setSurfaceTextureListener(this);
         }
