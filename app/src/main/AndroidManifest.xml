@@ -32,7 +32,7 @@
             android:name=".RecordingForegroundService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="camera" />
+            android:foregroundServiceType="camera|microphone" />
         <!-- ================================== -->
     </application>
 </manifest>
