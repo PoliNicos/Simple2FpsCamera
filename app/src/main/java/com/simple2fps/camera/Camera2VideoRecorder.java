@@ -342,4 +342,11 @@ public class Camera2VideoRecorder {
     public void setVideoSize(Size size) {
         this.selectedVideoSize = size;
     }
+    public CameraDevice getCameraDevice() {
+        return this.cameraDevice;
+    }
+
+    public Handler getBackgroundHandler() {
+        return this.backgroundHandler;
+    }
 }

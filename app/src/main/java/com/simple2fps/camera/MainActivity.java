@@ -148,7 +148,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         if (checkPermissions()) {
-            recorder.openCamera(width, height);
+            recorder.openCamera();
             
             new Handler().postDelayed(() -> {
                 processMacroDroidIntent(getIntent());
@@ -203,7 +203,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             photoSize = new Size(1920, 1080);
         }
 
-        photoCapture = new Camera2PhotoCapture(this, recorder.cameraDevice, recorder.backgroundHandler);
+        photoCapture = new Camera2PhotoCapture(this, recorder.getCameraDevice(), recorder.getBackgroundHandler());
         photoCapture.setPhotoSize(photoSize);
         
         statusText.setText("Capturing photo...");
@@ -256,7 +256,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             photoSize = new Size(1920, 1080);
         }
         
-        photoCapture = new Camera2PhotoCapture(this, recorder.cameraDevice, recorder.backgroundHandler);
+        photoCapture = new Camera2PhotoCapture(this, recorder.getCameraDevice(), recorder.getBackgroundHandler());
         photoCapture.setPhotoSize(photoSize);
         photoCapture.setNightMode(nightMode);
         photoCapture.setHdrMode(hdr);
