@@ -47,8 +47,7 @@ public class Camera2VideoRecorder {
     private Size selectedVideoSize;
     private int selectedFps = 2;
     
-    // NEW: WakeLock is essential for recording when screen is off
-    private PowerManager.WakeLock wakeLock;
+    
 
     public Camera2VideoRecorder(Context context, TextureView textureView, TextView statusView) {
         // Use Application Context to avoid memory leaks if Activity is destroyed
@@ -143,28 +142,12 @@ public class Camera2VideoRecorder {
     public void startRecording(int fps, String customPath) {
         this.selectedFps = fps;
         
-        // 1. START FOREGROUND SERVICE (Keep App Alive)
-        Intent serviceIntent = new Intent(context, RecordingForegroundService.class);
-        serviceIntent.putExtra("duration", 0); 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            context.startForegroundService(serviceIntent);
-        } else {
-            context.startService(serviceIntent);
-        }
-
-        // 2. ACQUIRE WAKELOCK (Keep CPU Alive)
-        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Simple2Fps::RecordingLock");
-        wakeLock.acquire(10 * 60 * 60 * 1000L); // Limit to 10 hours max safety
-
         closePreviewSession();
         
-        // Determine Size
         int width = selectedVideoSize != null ? selectedVideoSize.getWidth() : 1920;
         int height = selectedVideoSize != null ? selectedVideoSize.getHeight() : 1080;
 
         try {
-            // Setup File
             File file;
             if (customPath != null && !customPath.isEmpty()) {
                 file = new File(customPath);
@@ -176,7 +159,6 @@ public class Camera2VideoRecorder {
                 );
             }
 
-            // Setup MediaRecorder
             mediaRecorder = new MediaRecorder();
             mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
@@ -189,14 +171,11 @@ public class Camera2VideoRecorder {
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
             mediaRecorder.prepare();
 
-            // Setup Surfaces
             List<Surface> surfaces = new ArrayList<>();
             
-            // A. Recorder Surface (Must be persistent)
             Surface recorderSurface = mediaRecorder.getSurface();
             surfaces.add(recorderSurface);
             
-            // B. Preview Surface (Optional - only if screen is on)
             Surface previewSurface = null;
             if (textureView.isAvailable()) {
                 SurfaceTexture texture = textureView.getSurfaceTexture();
@@ -205,17 +184,14 @@ public class Camera2VideoRecorder {
                 surfaces.add(previewSurface);
             }
 
-            // Create Request
             previewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
             previewRequestBuilder.addTarget(recorderSurface);
             if (previewSurface != null) {
                 previewRequestBuilder.addTarget(previewSurface);
             }
             
-            // Set FPS
             previewRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(fps, fps));
 
-            // Create Session
             cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(CameraCaptureSession session) {
@@ -229,7 +205,9 @@ public class Camera2VideoRecorder {
                             Toast.makeText(context, "Recording Started", Toast.LENGTH_SHORT).show();
                         });
                         
-                    } catch (Exception e) { e.printStackTrace(); }
+                    } catch (Exception e) { 
+                        Log.e(TAG, "Recording start failed", e);
+                    }
                 }
 
                 @Override
@@ -239,26 +217,20 @@ public class Camera2VideoRecorder {
             }, backgroundHandler);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, "startRecording exception", e);
             runOnUiThread(() -> Toast.makeText(context, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show());
         }
     }
 
     public void stopRecording() {
-        // 1. Release Lock
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
-        }
-        
-        // 2. Stop Service
-        context.stopService(new Intent(context, RecordingForegroundService.class));
-        
         try {
             if (captureSession != null) {
                 captureSession.stopRepeating();
                 captureSession.abortCaptures();
             }
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            Log.e(TAG, "Stop capture session failed", e);
+        }
         
         try {
             if (mediaRecorder != null) {
@@ -266,11 +238,11 @@ public class Camera2VideoRecorder {
                 mediaRecorder.reset();
             }
         } catch (Exception e) {
-            e.printStackTrace(); // Often throws if stopped too quickly
+            Log.e(TAG, "Stop mediaRecorder failed", e);
         }
         
         runOnUiThread(() -> statusView.setText("Saved"));
-        startPreview(); // Restart preview
+        startPreview();
     }
 
     private void closePreviewSession() {
