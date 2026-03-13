@@ -340,7 +340,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
-        
+
         // Set default AFTER listener is attached
         int defaultIndex = 0;
         for (int i = 0; i < availableResolutions.size(); i++) {
@@ -411,19 +411,46 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         }
         
-        if (quality != null) {
+        // ===== CHANGE 6: Better quality matching =====
+        if (quality != null && !quality.isEmpty() && availableResolutions != null) {
+            boolean found = false;
+            
+            // Try exact match first
             for (int i = 0; i < availableResolutions.size(); i++) {
                 Size size = availableResolutions.get(i);
                 String sizeStr = size.getWidth() + "x" + size.getHeight();
                 
-                if (quality.equals(sizeStr) || 
-                    (quality.equalsIgnoreCase("fhd") && size.getWidth() == 1920) ||
-                    (quality.equalsIgnoreCase("hd") && size.getWidth() == 1280) ||
-                    (quality.equalsIgnoreCase("4k") && size.getWidth() == 3840)) {
+                if (quality.equals(sizeStr)) {
                     resolutionSpinner.setSelection(i);
                     recorder.setVideoSize(size);
+                    found = true;
+                    android.util.Log.d("Quality", "Found exact match: " + sizeStr);
                     break;
                 }
+            }
+            
+            // Try name match if no exact match
+            if (!found) {
+                for (int i = 0; i < availableResolutions.size(); i++) {
+                    Size size = availableResolutions.get(i);
+                    
+                    if ((quality.equalsIgnoreCase("4k") && size.getWidth() == 3840 && size.getHeight() == 2160) ||
+                        (quality.equalsIgnoreCase("fhd") && size.getWidth() == 1920 && size.getHeight() == 1080) ||
+                        (quality.equalsIgnoreCase("hd") && size.getWidth() == 1280 && size.getHeight() == 720) ||
+                        (quality.equalsIgnoreCase("vga") && size.getWidth() == 640 && size.getHeight() == 480) ||
+                        (quality.equalsIgnoreCase("qhd") && size.getWidth() == 2560 && size.getHeight() == 1440)) {
+                        
+                        resolutionSpinner.setSelection(i);
+                        recorder.setVideoSize(size);
+                        found = true;
+                        android.util.Log.d("Quality", "Found name match for: " + quality);
+                        break;
+                    }
+                }
+            }
+            
+            if (!found) {
+                android.util.Log.w("Quality", "Quality not found: " + quality + ", using default");
             }
         }
         
