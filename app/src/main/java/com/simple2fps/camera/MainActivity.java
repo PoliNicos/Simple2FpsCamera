@@ -88,13 +88,15 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
 
         recorder = new Camera2VideoRecorder(this, textureView, statusText);
+
         String[] fpsItems = new String[]{"1 FPS", "2 FPS", "5 FPS", "10 FPS", "15 FPS", "24 FPS", "30 FPS"};
         ArrayAdapter<String> fpsAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, fpsItems);
         fpsSpinner.setAdapter(fpsAdapter);
         fpsSpinner.setSelection(1);
 
-        
         textureView.setSurfaceTextureListener(this);
+        // ===== CHANGE 2: Add note =====
+        // setupResolutionSpinner() is now called in onSurfaceTextureAvailable()
 
         modeButton.setOnClickListener(v -> {
             if (isRecording) return;
@@ -148,15 +150,16 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         if (checkPermissions()) {
             recorder.openCamera();
-            // ADD THIS LINE:
-            setupResolutionSpinner();  // Now setup AFTER camera opens
-        
+            // ===== CHANGE 3: ADD setupResolutionSpinner() HERE =====
+            if (!resolutionSpinnerSetup) {
+                setupResolutionSpinner();
+                resolutionSpinnerSetup = true;
+            }
             new Handler().postDelayed(() -> {
                 processMacroDroidIntent(getIntent());
             }, 1500);
         }
     }
-
 
     private void processMacroDroidIntent(Intent intent) {
         if (isProcessingMacroDroid) {
@@ -197,7 +200,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     }
 
     private void capturePhotoManual() {
-        Size photoSize = null; 
+        Size photoSize = null;
         int selectedPos = resolutionSpinner.getSelectedItemPosition();
         if (availableResolutions != null && selectedPos < availableResolutions.size()) {
             photoSize = availableResolutions.get(selectedPos);
@@ -290,9 +293,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
 
     private void setupResolutionSpinner() {
         availableResolutions = recorder.getAvailableVideoSizes();
-        
+        // ===== CHANGE 4: Add safety check =====
         if (availableResolutions == null || availableResolutions.isEmpty()) {
-            Toast.makeText(this, "No resolutions available", Toast.LENGTH_SHORT).show();
+            android.util.Log.e("Resolution", "No resolutions available!");
             return;
         }
         
@@ -322,7 +325,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         );
         resolutionSpinner.setAdapter(resAdapter);
         
-        // Set listener FIRST
+        // ===== CHANGE 5: Listener FIRST, then selection =====
         resolutionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
@@ -330,7 +333,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                     Size selected = availableResolutions.get(position);
                     recorder.setVideoSize(selected);
                     statusText.setText("Resolution: " + selected.getWidth() + "x" + selected.getHeight());
-                    android.util.Log.d("Resolution", "Changed to: " + selected.getWidth() + "x" + selected.getHeight());
+                    android.util.Log.d("Resolution", "Selected: " + selected.getWidth() + "x" + selected.getHeight());
                 }
             }
             
@@ -338,7 +341,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             public void onNothingSelected(AdapterView<?> parent) {}
         });
         
-        // Then set default selection
+        // Set default AFTER listener is attached
         int defaultIndex = 0;
         for (int i = 0; i < availableResolutions.size(); i++) {
             Size size = availableResolutions.get(i);
@@ -347,9 +350,10 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
                 break;
             }
         }
-        
         resolutionSpinner.setSelection(defaultIndex);
         recorder.setVideoSize(availableResolutions.get(defaultIndex));
+        
+        android.util.Log.d("Resolution", "Setup complete with " + availableResolutions.size() + " resolutions");
     }
 
     private void startRecording() {
