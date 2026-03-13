@@ -88,9 +88,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
 
         recorder = new Camera2VideoRecorder(this, textureView, statusText);
-        if (checkPermissions()) {
-            setupResolutionSwitcher();
-        }
+        
         String[] fpsItems = new String[]{"1 FPS", "2 FPS", "5 FPS", "10 FPS", "15 FPS", "24 FPS", "30 FPS"};
         ArrayAdapter<String> fpsAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, fpsItems);
         fpsSpinner.setAdapter(fpsAdapter);
