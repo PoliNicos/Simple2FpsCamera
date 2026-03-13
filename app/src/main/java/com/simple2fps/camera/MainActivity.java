@@ -93,7 +93,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         fpsSpinner.setAdapter(fpsAdapter);
         fpsSpinner.setSelection(1);
 
-        setupResolutionSpinner();
+        
         textureView.setSurfaceTextureListener(this);
 
         modeButton.setOnClickListener(v -> {
@@ -148,7 +148,9 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
         if (checkPermissions()) {
             recorder.openCamera();
-            
+            // ADD THIS LINE:
+            setupResolutionSpinner();  // Now setup AFTER camera opens
+        
             new Handler().postDelayed(() -> {
                 processMacroDroidIntent(getIntent());
             }, 1500);
