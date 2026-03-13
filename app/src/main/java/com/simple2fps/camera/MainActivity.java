@@ -195,7 +195,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     }
 
     private void capturePhotoManual() {
-        Size photoSize = null;
+        Size photoSize = null; 
         int selectedPos = resolutionSpinner.getSelectedItemPosition();
         if (availableResolutions != null && selectedPos < availableResolutions.size()) {
             photoSize = availableResolutions.get(selectedPos);
