@@ -291,6 +291,11 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private void setupResolutionSpinner() {
         availableResolutions = recorder.getAvailableVideoSizes();
         
+        if (availableResolutions == null || availableResolutions.isEmpty()) {
+            Toast.makeText(this, "No resolutions available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
         List<String> resolutionStrings = new ArrayList<>();
         for (Size size : availableResolutions) {
             String label = size.getWidth() + " x " + size.getHeight();
@@ -317,6 +322,23 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         );
         resolutionSpinner.setAdapter(resAdapter);
         
+        // Set listener FIRST
+        resolutionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
+                if (!isRecording && availableResolutions != null && position >= 0 && position < availableResolutions.size()) {
+                    Size selected = availableResolutions.get(position);
+                    recorder.setVideoSize(selected);
+                    statusText.setText("Resolution: " + selected.getWidth() + "x" + selected.getHeight());
+                    android.util.Log.d("Resolution", "Changed to: " + selected.getWidth() + "x" + selected.getHeight());
+                }
+            }
+            
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        
+        // Then set default selection
         int defaultIndex = 0;
         for (int i = 0; i < availableResolutions.size(); i++) {
             Size size = availableResolutions.get(i);
@@ -326,26 +348,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             }
         }
         
-        if (!availableResolutions.isEmpty()) {
-            resolutionSpinner.setSelection(defaultIndex);
-            recorder.setVideoSize(availableResolutions.get(defaultIndex));
-        }
-        
-        resolutionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
-                if (!isRecording && position < availableResolutions.size()) {
-                    Size selected = availableResolutions.get(position);
-                    recorder.setVideoSize(selected);
-                    statusText.setText("Resolution: " + selected.getWidth() + "x" + selected.getHeight());
-                }
-                
-            }
-            
-            
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
+        resolutionSpinner.setSelection(defaultIndex);
+        recorder.setVideoSize(availableResolutions.get(defaultIndex));
     }
 
     private void startRecording() {
