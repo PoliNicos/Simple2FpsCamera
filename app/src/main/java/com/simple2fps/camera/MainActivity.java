@@ -39,7 +39,8 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
     private boolean isBackgroundRecording = false;
     private boolean isProcessingMacroDroid = false;
     private boolean isBackgroundPhoto = false;
-    
+    private boolean resolutionSpinnerSetup = false;  // ADD THIS FLAG
+
     private PowerManager.WakeLock wakeLock;
     
     private List<Size> availableResolutions;
