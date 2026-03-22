@@ -20,11 +20,25 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Locale;
+import androidx.camera.core.CameraProvider;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.extensions.ExtensionMode;
+import androidx.camera.extensions.ExtensionsManager;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.core.content.ContextCompat;
+import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.ExecutionException;
 
 public class Camera2PhotoCapture {
     private static final String TAG = "Camera2PhotoCapture";
     private Activity activity;
     private CameraDevice cameraDevice;
+    // Step 2: Aggiungi questa variabile nella classe
+    // Extensions fields
+    private ExtensionsManager extensionsManager;
+    private boolean isHdrSupported = false;
+    private boolean isNightSupported = false;
+
     private CameraCaptureSession captureSession;
     private ImageReader imageReader;
     private Handler backgroundHandler;
@@ -41,11 +55,32 @@ public class Camera2PhotoCapture {
         this.activity = activity;
         this.cameraDevice = camera;
         this.backgroundHandler = handler;
+        initializeExtensions(); // Initialize once
+    }
+    private void initializeExtensions() {
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(activity);
+        cameraProviderFuture.addListener(() -> {
+            try {
+                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
+                extensionsManager = ExtensionsManager.getInstanceAsync(activity, cameraProvider).get();
+                
+                // Usually "0" is back camera. Adjust if using front.
+                CameraSelector selector = CameraSelector.DEFAULT_BACK_CAMERA;
+                isHdrSupported = extensionsManager.isExtensionAvailable(selector, androidx.camera.extensions.ExtensionMode.HDR);
+                isNightSupported = extensionsManager.isExtensionAvailable(selector, androidx.camera.extensions.ExtensionMode.NIGHT);
+                
+                Log.d(TAG, "Extensions - HDR: " + isHdrSupported + " Night: " + isNightSupported);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to init extensions", e);
+            }
+        }, ContextCompat.getMainExecutor(activity));
     }
 
     public void setPhotoSize(Size size) { this.photoSize = size; }
     public void setNightMode(boolean enabled) { this.nightMode = enabled; }
     public void setHdrMode(boolean enabled) { this.hdrMode = enabled; }
+
+    
 
     public void capturePhoto(String customPath, PhotoCallback callback) {
         if (cameraDevice == null) {
@@ -110,10 +145,18 @@ public class Camera2PhotoCapture {
 
     private void applyEnhancements(CaptureRequest.Builder builder) {
         try {
-            if (hdrMode) {
+            // Priority 1: Xiaomi/OEM Vendor HDR
+            if (hdrMode && isHdrSupported) {
                 builder.set(CaptureRequest.CONTROL_SCENE_MODE, CameraMetadata.CONTROL_SCENE_MODE_HDR);
                 builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_USE_SCENE_MODE);
-            } else if (nightMode) {
+                Log.d(TAG, "Using Vendor HDR Extension");
+            }
+            else if (hdrMode) {
+                builder.set(CaptureRequest.CONTROL_SCENE_MODE, CameraMetadata.CONTROL_SCENE_MODE_HDR);
+                builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_USE_SCENE_MODE);
+            }
+            // Priority 3: Night Mode
+            else if (nightMode){
                 // --- PRO STABLE NIGHT MODE ---
                 builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
                 
@@ -160,4 +203,5 @@ public class Camera2PhotoCapture {
             callback.onError(e.getMessage());
         }
     }
+    
 }
