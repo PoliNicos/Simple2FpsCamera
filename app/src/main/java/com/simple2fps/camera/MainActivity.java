@@ -209,11 +209,22 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             photoSize = new Size(1920, 1080);
         }
 
+        // --- INIZIO FIX ---
+        // Generiamo un nome file unico basato sulla data e ora correnti
+        String timeStamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(new java.util.Date());
+        String fileName = "IMG_" + timeStamp + ".jpg";
+        
+        // Salviamo la foto nella cartella "Pictures" privata dell'app (non richiede permessi di archiviazione extra)
+        java.io.File storageDir = getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES);
+        java.io.File imageFile = new java.io.File(storageDir, fileName);
+        String defaultPath = imageFile.getAbsolutePath();
+        // --- FINE FIX ---
+
         photoCapture = new Camera2PhotoCapture(this, recorder.getCameraDevice(), recorder.getBackgroundHandler());
         photoCapture.setPhotoSize(photoSize);
         
         statusText.setText("Capturing photo...");
-        photoCapture.capturePhoto(null, new Camera2PhotoCapture.PhotoCallback() {
+        photoCapture.capturePhoto(defaultPath, new Camera2PhotoCapture.PhotoCallback() {
             @Override
             public void onPhotoSaved(String filepath) {
                 runOnUiThread(() -> {
