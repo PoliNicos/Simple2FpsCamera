@@ -209,16 +209,20 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             photoSize = new Size(1920, 1080);
         }
 
-        // --- INIZIO FIX ---
-        // Generiamo un nome file unico basato sulla data e ora correnti
-        String timeStamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(new java.util.Date());
-        String fileName = "IMG_" + timeStamp + ".jpg";
+        // Target the public DCIM directory
+        java.io.File dcimDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DCIM);
         
-        // Salviamo la foto nella cartella "Pictures" privata dell'app (non richiede permessi di archiviazione extra)
-        java.io.File storageDir = getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES);
-        java.io.File imageFile = new java.io.File(storageDir, fileName);
+        // Create a subfolder for your app (optional, but keeps things tidy)
+        java.io.File appFolder = new java.io.File(dcimDir, "Simple2Fps");
+        if (!appFolder.exists()) {
+            appFolder.mkdirs();
+        }
+
+        // Generate a unique filename based on the current date and time
+        String timeStamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(new java.util.Date());
+        java.io.File imageFile = new java.io.File(appFolder, "IMG_" + timeStamp + ".jpg");
         String defaultPath = imageFile.getAbsolutePath();
-        // --- FINE FIX ---
+        // --- END OF DCIM FIX ---
 
         photoCapture = new Camera2PhotoCapture(this, recorder.getCameraDevice(), recorder.getBackgroundHandler());
         photoCapture.setPhotoSize(photoSize);
