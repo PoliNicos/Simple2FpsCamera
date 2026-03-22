@@ -209,7 +209,7 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             photoSize = new Size(1920, 1080);
         }
 
-        // Target the public DCIM directory
+                // Target the public DCIM directory
         java.io.File dcimDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DCIM);
         
         // Create a subfolder for your app (optional, but keeps things tidy)
